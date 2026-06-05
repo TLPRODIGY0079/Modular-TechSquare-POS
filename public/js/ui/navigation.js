@@ -308,7 +308,10 @@ function initNavigation() {
     renderTopbarActions();
 }
 
-// Export for use in other modules
+// ES6 module exports
+export { getPages, renderSidebar, closeSidebar, renderTopbarActions, navigate, initNavigation };
+
+// CommonJS fallback for compatibility
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         getPages,

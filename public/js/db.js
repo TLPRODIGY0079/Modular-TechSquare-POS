@@ -303,7 +303,26 @@ function updateConnBadge() {
     }
 }
 
-// Export for use in other modules
+// ES6 module exports
+export { 
+    getDB, 
+    getCurrentUser, 
+    setCurrentUser, 
+    getCurrentPage, 
+    setCurrentPage, 
+    getCart, 
+    setCart, 
+    initOfflineDB, 
+    loadDB, 
+    isOnlineMode, 
+    toggleForcedOffline, 
+    updateConnBadge 
+};
+
+// Export getters/setters for module state
+export { offlineDB, currentUser, currentPage, cart, _revenueChart, _lowStockInterval };
+
+// CommonJS fallback for compatibility
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         getDB,

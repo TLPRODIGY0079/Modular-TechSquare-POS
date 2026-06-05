@@ -188,7 +188,10 @@ function hasAccess(page) {
     return pageConfig.roles.includes(user.role);
 }
 
-// Export for use in other modules
+// ES6 module exports
+export { restoreSession, signIn, logout, hasAccess };
+
+// CommonJS fallback for compatibility
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         restoreSession,

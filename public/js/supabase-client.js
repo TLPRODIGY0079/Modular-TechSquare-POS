@@ -39,7 +39,10 @@ function isSupabaseAvailable() {
     return sb !== null;
 }
 
-// Export for use in other modules
+// ES6 module exports
+export { initSupabase, getSupabase, isSupabaseAvailable };
+
+// CommonJS fallback for compatibility
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         initSupabase,

@@ -66,7 +66,10 @@ function initModal() {
     }
 }
 
-// Export for use in other modules
+// ES6 module exports
+export { openModal, closeModal, showConfirm, initModal };
+
+// CommonJS fallback for compatibility
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         openModal,
