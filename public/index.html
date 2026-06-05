@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TECHSQUARE — Multi-Store POS</title>
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/jpeg" href="images/TechSquare-logo.jpeg" />
+    <link rel="apple-touch-icon" href="images/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#00C2CB" />
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    
+    <!-- Modular CSS -->
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/layouts.css" />
+    <link rel="stylesheet" href="css/pages.css" />
+    <link rel="stylesheet" href="css/responsive.css" />
+</head>
+<body>
+    <!-- App Shell -->
+    <div id="appShell">
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="icon">
+                    <img
+                        src="images/TechSquare-logo.jpeg"
+                        alt="TS"
+                        style="width: 60px; height: 60px; object-fit: contain; border-radius: 8px;"
+                        onerror="this.style.display='none'; this.parentElement.style.background='#00C2CB'; this.parentElement.innerHTML='<i class=\'fas fa-store\' style=\'color:#fff;font-size:18px\'></i>';"
+                    />
+                </div>
+                <div>
+                    <h2>TECHSQUARE</h2>
+                    <span>Multi-Store POS</span>
+                </div>
+            </div>
+            <nav class="sidebar-nav" id="sidebarNav"></nav>
+            <div class="sidebar-user" id="sidebarUser"></div>
+        </aside>
+        
+        <div class="main">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="menu-toggle" id="menuToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 id="pageTitle">Dashboard</h1>
+                </div>
+                <div class="topbar-actions" id="topbarActions"></div>
+            </header>
+            
+            <div id="lowStockBanner" style="display: none; background: var(--wn2); border-bottom: 2px solid var(--wn); padding: 10px 28px; font-size: 13px; color: var(--wn); font-weight: 600; flex-shrink: 0;"></div>
+            
+            <div class="content" id="mainContent"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modalBox">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modal</h3>
+                <button class="modal-close" id="modalClose">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <!-- Barcode Scanner Modal -->
+    <div class="modal-overlay" id="barcodeScannerOverlay" style="display: none">
+        <div style="width: 100%; max-width: 600px; background: var(--bg2); border-radius: 20px; overflow: hidden;">
+            <div style="padding: 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--bd);">
+                <h3 style="font-size: 18px; font-weight: 700">
+                    <i class="fas fa-barcode" style="margin-right: 10px; color: var(--ac)"></i>
+                    Scan Barcode
+                </h3>
+                <button class="modal-close" id="barcodeScannerClose">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <div id="barcodeReader" style="width: 100%; min-height: 300px"></div>
+            <div style="padding: 20px; text-align: center; color: var(--tx2); font-size: 13px;">
+                <p><i class="fas fa-info-circle"></i> Point camera at barcode or SKU label</p>
+                <p style="margin-top: 8px">Supported: Code128, EAN-13, UPC, QR Codes</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" style="display: flex; align-items: center; justify-content: center; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; background: var(--bg);">
+        <div class="login-card" style="background: var(--bg2); border-radius: 20px; padding: 40px; box-shadow: var(--sh2); width: 100%; max-width: 400px;">
+            <div style="text-align: center; margin-bottom: 32px;">
+                <img src="images/TechSquare-logo.jpeg" alt="TECHSQUARE" style="width: 80px; height: 80px; object-fit: contain; border-radius: 12px; margin-bottom: 16px;" />
+                <h1 style="font-size: 24px; font-weight: 700; color: var(--tx); margin-bottom: 8px;">TECHSQUARE</h1>
+                <p style="color: var(--tx2); font-size: 14px;">Multi-Store POS System</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" class="form-input" id="loginEmail" required placeholder="Enter your email" />
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" class="form-input" id="loginPassword" required placeholder="Enter your password" />
+                </div>
+                <button type="submit" class="btn btn-primary" id="loginBtn">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+            </form>
+            <div id="loginError" style="color: var(--dn); font-size: 13px; text-align: center; margin-top: 16px; display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Modular JavaScript -->
+    <script src="js/offline-db.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

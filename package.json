@@ -1,0 +1,30 @@
+{
+  "name": "techsquare-pos",
+  "version": "2.0.5",
+  "description": "Multi-Store POS System with Supabase backend",
+  "main": "public/js/app.js",
+  "scripts": {
+    "dev": "npx serve public",
+    "build": "echo 'No build step required - static site'",
+    "preview": "npx serve public",
+    "lint": "eslint public/js",
+    "format": "prettier --write public/js public/css"
+  },
+  "keywords": [
+    "pos",
+    "inventory",
+    "supabase",
+    "offline-first",
+    "progressive-web-app"
+  ],
+  "author": "TECHSQUARE",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  }
+}

@@ -1,0 +1,100 @@
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+:root {
+    --bg: #f2f2f7;
+    --bg2: #fff;
+    --bg3: #e5e5ea;
+    --bg4: #f9f9fb;
+    --tx: #1c1c1e;
+    --tx2: #636366;
+    --tx3: #aeaeb2;
+    --ac: #00c2cb;
+    --ac2: #009aa3;
+    --ac3: rgba(0, 194, 203, 0.12);
+    --gn: #34c759;
+    --gn2: rgba(52, 199, 89, 0.12);
+    --wn: #ff9500;
+    --wn2: rgba(255, 149, 0, 0.12);
+    --dn: #ff3b30;
+    --dn2: rgba(255, 59, 48, 0.12);
+    --bd: #d1d1d6;
+    --sh: 0 2px 12px rgba(0, 0, 0, 0.06);
+    --sh2: 0 8px 30px rgba(0, 0, 0, 0.1);
+    --r: 14px;
+    --rs: 10px;
+    --sidebar: 260px;
+    --header: 64px;
+}
+.dark {
+    --bg: #000;
+    --bg2: #1c1c1e;
+    --bg3: #2c2c2e;
+    --bg4: #1c1c1e;
+    --tx: #f2f2f7;
+    --tx2: #8e8e93;
+    --tx3: #48484a;
+    --ac: #00d4de;
+    --ac2: #00b8c1;
+    --ac3: rgba(0, 212, 222, 0.18);
+    --bd: #38383a;
+    --sh: 0 2px 12px rgba(0, 0, 0, 0.3);
+    --sh2: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --gn2: rgba(52, 199, 89, 0.18);
+    --wn2: rgba(255, 149, 0, 0.18);
+    --dn2: rgba(255, 59, 48, 0.18);
+}
+.dark body {
+    background: var(--bg) url("TechSquare-logo.jpeg") no-repeat
+        center center;
+    background-size: 200px;
+    background-attachment: fixed;
+    background-blend-mode: overlay;
+    background-color: rgba(0, 0, 0, 0.95);
+}
+html {
+    font-size: 16px;
+}
+body {
+    font-family:
+        "Plus Jakarta Sans",
+        system-ui,
+        -apple-system,
+        sans-serif;
+    background: var(--bg) url("TechSquare-logo.jpeg") no-repeat
+        center center;
+    background-size: 200px;
+    background-attachment: fixed;
+    background-blend-mode: overlay;
+    background-color: rgba(242, 242, 247, 0.95);
+    color: var(--tx);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+input,
+select,
+textarea,
+button {
+    font-family: inherit;
+    font-size: 16px;
+}
+a {
+    color: var(--ac);
+    text-decoration: none;
+}
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--bd);
+    border-radius: 3px;
+}

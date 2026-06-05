@@ -1,0 +1,52 @@
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        transform: translateX(-100%);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    .menu-toggle {
+        display: block;
+    }
+    .content {
+        padding: 16px;
+    }
+    .topbar {
+        padding: 0 16px;
+    }
+    .pos-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .pos-cart {
+        max-height: 50vh;
+    }
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+    .stat-card {
+        padding: 16px;
+    }
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    .stat-card {
+        padding: 14px;
+    }
+    .login-card {
+        padding: 32px 24px;
+    }
+}

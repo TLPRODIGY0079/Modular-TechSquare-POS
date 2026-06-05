@@ -1,0 +1,23 @@
+# Supabase Configuration File
+# This file configures the Supabase CLI for local development
+
+[project]
+ref = "ojstpssuxgmkjhzpillr" # Your project reference
+api_url = "https://ojstpssuxgmkjhzpillr.supabase.co"
+db_url = "postgresql://postgres:[YOUR-PASSWORD]@db.ojstpssuxgmkjhzpillr.supabase.co:5432/postgres"
+
+[studio]
+enabled = true
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://vercel.app", "https://netlify.app"]
+
+[functions]
+# Edge functions configuration (if needed)
+
+# To use this configuration:
+# 1. Install Supabase CLI: https://supabase.com/docs/reference/cli
+# 2. Run: supabase login
+# 3. Run: supabase link --project-ref ojstpssuxgmkjhzpillr
+# 4. Run migrations: supabase db push
