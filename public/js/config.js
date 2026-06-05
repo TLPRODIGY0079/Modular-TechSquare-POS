@@ -2,8 +2,8 @@
 // Version: 2.0.5 - Financial fixes + cost_price corrections
 
 // Supabase Configuration
-const SUPABASE_URL = "https://ojstpssuxgmkjhzpillr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qc3Rwc3N1eGdta2poenBpbGxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5Nzg1MDcsImV4cCI6MjA5MjU1NDUwN30.uQ-049hvQU7WjpGFd6KGRcAuJ5TXtmqMK2mhl5UZMK4";
+const SUPABASE_URL = "https://htxlkznfhiabrkaptuvw.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0eGxrem5maGlhYnJrYXB0dXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2Njg0NjksImV4cCI6MjA5NjI0NDQ2OX0.ygNOORvF6Ys_c_WMEOl9WkZQx0tv0lt9kbGYaMMHgJM";
 
 // Store IDs
 const STORE1_ID = "00000000-0000-0000-0000-000000000001";

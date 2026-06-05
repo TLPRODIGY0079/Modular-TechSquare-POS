@@ -36,7 +36,7 @@ async function restoreSession() {
             .single();
 
         if (!profile) {
-            const user = {
+            const userData = {
                 id: user.id,
                 email: user.email,
                 name: user.email,
@@ -44,25 +44,25 @@ async function restoreSession() {
                 storeId: null,
                 noProfile: true,
             };
-            setCurrentUser(user);
+            setCurrentUser(userData);
             localStorage.setItem(
                 "techsquare-cached-user",
-                JSON.stringify(user),
+                JSON.stringify(userData),
             );
             return true;
         }
 
-        const user = {
+        const userData = {
             id: user.id,
             email: user.email,
             name: profile.name,
             role: profile.role,
             storeId: profile.store_id,
         };
-        setCurrentUser(user);
+        setCurrentUser(userData);
         localStorage.setItem(
             "techsquare-cached-user",
-            JSON.stringify(user),
+            JSON.stringify(userData),
         );
         return true;
     } catch (error) {
