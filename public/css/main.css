@@ -49,7 +49,7 @@
     --dn2: rgba(255, 59, 48, 0.18);
 }
 .dark body {
-    background: var(--bg) url("TechSquare-logo.jpeg") no-repeat
+    background: var(--bg) url("../images/TechSquare-logo.svg") no-repeat
         center center;
     background-size: 200px;
     background-attachment: fixed;
@@ -65,7 +65,7 @@ body {
         system-ui,
         -apple-system,
         sans-serif;
-    background: var(--bg) url("TechSquare-logo.jpeg") no-repeat
+    background: var(--bg) url("../images/TechSquare-logo.svg") no-repeat
         center center;
     background-size: 200px;
     background-attachment: fixed;

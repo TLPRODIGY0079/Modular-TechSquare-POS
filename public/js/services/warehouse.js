@@ -229,6 +229,14 @@ export function switchWarehouseTab(tabName) {
 }
 
 /**
+ * Render transfers page (navigation route)
+ */
+export async function renderTransfers() {
+    warehouseCurrentTab = "transfers";
+    await renderWarehouse();
+}
+
+/**
  * Render tab content
  */
 function renderWarehouseTabContent() {
@@ -1451,6 +1459,7 @@ const warehouseService = {
     saveStockRequest,
     updateStockRequest,
     renderWarehouse,
+    renderTransfers,
     deleteWarehouseProduct,
     findOrCreateDestinationVariant,
     approveStockRequest,
