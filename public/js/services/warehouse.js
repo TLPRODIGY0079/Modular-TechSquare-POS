@@ -232,8 +232,191 @@ export function switchWarehouseTab(tabName) {
  * Render transfers page (navigation route)
  */
 export async function renderTransfers() {
-    warehouseCurrentTab = "transfers";
-    await renderWarehouse();
+    const DB = getDB();
+    const currentUser = getCurrentUser();
+    const sb = getSupabase();
+    const mainContent = document.getElementById("mainContent");
+    
+    if (!mainContent) return;
+
+    await loadStockRequests();
+    const isAdmin = currentUser.role === "admin" || currentUser.role === "store_manager";
+
+    if (!isAdmin) {
+        document.getElementById("mainContent").innerHTML = `
+      <div style="padding:40px;text-align:center">
+        <i class="fas fa-lock" style="font-size:48px;color:var(--tx3);margin-bottom:20px"></i>
+        <h2>Access Denied</h2>
+        <p style="color:var(--tx2);margin-top:10px">You don't have permission to access stock transfers.</p>
+      </div>
+    `;
+        return;
+    }
+
+    try {
+        // Get transfer records (approved stock requests)
+        const transfers = stockRequests
+            .filter((r) => r.status === "approved" || r.status === "completed")
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        const html = `
+      <div class="warehouse-container">
+        <div class="warehouse-header">
+          <div>
+            <h1><i class="fas fa-exchange-alt"></i> Stock Transfer Records</h1>
+            <p style="color:var(--tx2);margin-top:8px">Track stock movements between locations</p>
+          </div>
+          <div style="display:flex;gap:12px">
+            <button class="btn btn-outline" onclick="window.warehouseService.openTransferModal()">
+              <i class="fas fa-plus-circle"></i> New Transfer
+            </button>
+            <button class="btn btn-primary" onclick="window.warehouseService.renderWarehouse()">
+              <i class="fas fa-warehouse"></i> Warehouse Management
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--ac3);color:var(--ac)">
+              <i class="fas fa-exchange-alt"></i>
+            </div>
+            <div>
+              <div class="stat-value">${transfers.length}</div>
+              <div class="stat-label">Total Transfers</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--gn2);color:var(--gn)">
+              <i class="fas fa-check-circle"></i>
+            </div>
+            <div>
+              <div class="stat-value">${transfers.filter(t => t.status === 'completed').length}</div>
+              <div class="stat-label">Completed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--wn2);color:var(--wn)">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div>
+              <div class="stat-value">${transfers.filter(t => t.status === 'approved').length}</div>
+              <div class="stat-label">In Transit</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--dn2);color:var(--dn)">
+              <i class="fas fa-cube"></i>
+            </div>
+            <div>
+              <div class="stat-value">${transfers.reduce((sum, t) => sum + (t.quantity || 0), 0)}</div>
+              <div class="stat-label">Items Transferred</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transfers Table -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Transfer History</h3>
+            <div class="search-bar">
+              <i class="fas fa-search"></i>
+              <input type="text" class="search-input" id="transferSearch" placeholder="Search transfers...">
+            </div>
+          </div>
+          <div class="card-body np">
+            ${transfers.length === 0 ? `
+              <div class="empty-state">
+                <i class="fas fa-exchange-alt"></i>
+                <h3>No Transfers Yet</h3>
+                <p>Create your first stock transfer between locations</p>
+                <button class="btn btn-primary" onclick="window.warehouseService.openTransferModal()" style="margin-top:16px">
+                  <i class="fas fa-plus-circle"></i> Create Transfer
+                </button>
+              </div>
+            ` : `
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Product</th>
+                      <th>Quantity</th>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${transfers.map(transfer => {
+                      const variant = DB.variants.find(v => v.id === transfer.variant_id);
+                      const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
+                      
+                      return `
+                        <tr>
+                          <td>${new Date(transfer.created_at).toLocaleDateString()}</td>
+                          <td>
+                            <strong>${product ? product.name : 'Unknown Product'}</strong>
+                            <div style="font-size:12px;color:var(--tx2)">
+                              ${variant ? `${variant.color || ''} ${variant.storage || ''}`.trim() : ''}
+                            </div>
+                          </td>
+                          <td><span class="badge badge-blue">${transfer.quantity}</span></td>
+                          <td>Warehouse</td>
+                          <td>${transfer.store_name}</td>
+                          <td>
+                            <span class="badge ${
+                              transfer.status === 'completed' ? 'badge-green' : 
+                              transfer.status === 'approved' ? 'badge-blue' : 'badge-orange'
+                            }">${transfer.status}</span>
+                          </td>
+                          <td>
+                            ${transfer.status === 'approved' ? `
+                              <button class="btn btn-sm btn-success" onclick="window.warehouseService.completeTransfer('${transfer.id}')">
+                                <i class="fas fa-check"></i> Complete
+                              </button>
+                            ` : ''}
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+
+        document.getElementById("mainContent").innerHTML = html;
+
+        // Setup search functionality
+        const searchInput = document.getElementById("transferSearch");
+        if (searchInput) {
+            searchInput.addEventListener("input", (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll("tbody tr");
+                rows.forEach(row => {
+                    row.style.display = row.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+                });
+            });
+        }
+    } catch (error) {
+        console.error("Error rendering transfers:", error);
+        document.getElementById("mainContent").innerHTML = `
+      <div style="padding:40px;text-align:center">
+        <i class="fas fa-exclamation-triangle" style="font-size:48px;color:var(--dn);margin-bottom:20px"></i>
+        <h2>Error Loading Transfers</h2>
+        <p style="color:var(--tx2);margin-top:10px">${error.message}</p>
+        <button class="btn btn-primary" onclick="window.warehouseService.renderTransfers()" style="margin-top:20px">
+          <i class="fas fa-refresh"></i> Retry
+        </button>
+      </div>
+    `;
+    }
 }
 
 /**

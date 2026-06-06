@@ -15,68 +15,281 @@ export function renderTradeIn() {
     if (!mainContent) return;
 
     mainContent.innerHTML = `
-        <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 24px; font-weight: 700;">Trade-In Management</h2>
-            <button class="btn btn-primary" id="newTradeInBtn" style="width: auto;">
-                <i class="fas fa-plus"></i> New Trade-In
-            </button>
-        </div>
+        <div class="warehouse-container">
+            <div class="warehouse-header">
+                <div>
+                    <h1><i class="fas fa-rotate"></i> Trade-In Management</h1>
+                    <p style="color:var(--tx2);margin-top:8px">Process device trade-ins and upgrades</p>
+                </div>
+            </div>
 
-        <div class="tabs">
-            <div class="tab active" data-tab="pending">Pending</div>
-            <div class="tab" data-tab="approved">Approved</div>
-            <div class="tab" data-tab="rejected">Rejected</div>
-            <div class="tab" data-tab="completed">Completed</div>
-        </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+                <!-- New Trade-In Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>New Trade-In</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="tradeInForm">
+                            <div class="form-group">
+                                <label>Store</label>
+                                <select class="form-input" id="tradeInStore" required>
+                                    ${user.role === "admin" ? 
+                                        `<option value="">Select Store</option>
+                                        <option value="${STORE1_ID}">Store 1</option>
+                                        <option value="${STORE2_ID}">Store 2</option>` : 
+                                        `<option value="${user.storeId}">${user.storeId === STORE1_ID ? "Store 1" : "Store 2"}</option>`
+                                    }
+                                </select>
+                            </div>
+                            
+                            <div style="background:var(--bg);border-radius:12px;padding:16px;margin-bottom:16px">
+                                <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:12px">
+                                    <i class="fas fa-mobile-alt"></i> TRADE-IN DEVICE
+                                </div>
+                                <div class="form-group">
+                                    <label>Device Name *</label>
+                                    <input type="text" class="form-input" id="tradeInItemName" placeholder="e.g. iPhone 14 Pro" required>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>IMEI/Serial *</label>
+                                        <input type="text" class="form-input" id="tradeInSerialNumber" placeholder="Identifier" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Condition *</label>
+                                        <select class="form-input" id="tradeInCondition" required>
+                                            <option value="">Select condition</option>
+                                            <option value="Excellent">Excellent</option>
+                                            <option value="Good">Good</option>
+                                            <option value="Fair">Fair</option>
+                                            <option value="Poor">Poor</option>
+                                            <option value="Damaged">Damaged</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Trade-In Value (K) *</label>
+                                    <input type="number" class="form-input" id="tradeInValue" required min="0" step="0.01">
+                                </div>
+                            </div>
 
-        <div class="card">
-            <div class="card-body">
-                <div class="search-bar">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" id="tradeInSearch" placeholder="Search trade-ins...">
+                            <div style="background:var(--bg);border-radius:12px;padding:16px;margin-bottom:16px">
+                                <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:12px">
+                                    <i class="fas fa-cube"></i> NEW DEVICE
+                                </div>
+                                <div class="form-group">
+                                    <label>Select Product *</label>
+                                    <select class="form-input" id="tradeInProductId" required onchange="updateTradeInVariants()">
+                                        <option value="">Select Product...</option>
+                                        ${DB.products.filter(p => p.active !== false).map(p => 
+                                            `<option value="${p.id}">${p.name}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Select Variant *</label>
+                                    <select class="form-input" id="tradeInVariantId" required onchange="updateTradeInNet()">
+                                        <option value="">Select Variant...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Potential Sale Value</label>
+                                    <div id="tradeInSaleValue" style="font-weight:700;color:var(--gn)">K0.00</div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Customer Name</label>
+                                <input type="text" class="form-input" id="tradeInCustomerName" placeholder="Walk-in Customer">
+                            </div>
+                            
+                            <div style="background:var(--ac3);border-radius:12px;padding:12px;margin-bottom:16px;font-size:14px">
+                                <div style="display:flex;justify-content:space-between;align-items:center">
+                                    <span>Net Payment:</span>
+                                    <strong id="tradeInNetPayment" style="font-size:18px">K0.00</strong>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" style="width:100%">
+                                <i class="fas fa-rotate"></i> Process Trade-In
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
-                <div style="margin-top: 20px; overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Customer</th>
-                                <th>Item</th>
-                                <th>Condition</th>
-                                <th>Trade-In Value</th>
-                                <th>Sale Value</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tradeInTableBody">
-                            <!-- Trade-ins will be rendered here -->
-                        </tbody>
-                    </table>
+                <!-- Recent Trade-Ins -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recent Trade-Ins</h3>
+                    </div>
+                    <div class="card-body np">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Trade-In Device</th>
+                                    <th>New Device</th>
+                                    <th>Net Payment</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentTradeIns">
+                                ${DB.tradeIns.length === 0 ? 
+                                    `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tx3)">No trade-ins yet</td></tr>` :
+                                    DB.tradeIns.slice(0, 10).map(t => {
+                                        const variant = DB.variants.find(v => v.id === t.variant_id);
+                                        const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
+                                        return `
+                                            <tr>
+                                                <td>${new Date(t.created_at).toLocaleDateString()}</td>
+                                                <td>
+                                                    <strong>${t.item_name}</strong>
+                                                    <div style="font-size:12px;color:var(--tx2)">${t.serial_number || '-'}</div>
+                                                </td>
+                                                <td>
+                                                    <strong>${product ? product.name : '-'}</strong>
+                                                    <div style="font-size:12px;color:var(--tx2)">${variant ? `${variant.color || ''} ${variant.storage || ''}`.trim() : '-'}</div>
+                                                </td>
+                                                <td style="font-weight:700;color:var(--gn)">${money(t.sale_value - t.trade_in_value)}</td>
+                                                <td>
+                                                    <span class="badge ${
+                                                        t.status === 'completed' ? 'badge-green' : 
+                                                        t.status === 'approved' ? 'badge-blue' : 
+                                                        t.status === 'rejected' ? 'badge-red' : 'badge-orange'
+                                                    }">${t.status}</span>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 
-    // Setup event listeners
-    const newTradeInBtn = document.getElementById("newTradeInBtn");
-    if (newTradeInBtn) {
-        newTradeInBtn.addEventListener("click", () => openTradeInModal());
+    // Setup form submission
+    const form = document.getElementById("tradeInForm");
+    if (form) {
+        form.addEventListener("submit", processTradeInForm);
     }
 
-    // Setup tabs
-    setupTradeInTabs();
+    // Initialize variants dropdown
+    updateTradeInVariants();
+}
 
-    // Render trade-in table
-    renderTradeInTable('pending');
+// Update trade-in variants based on selected product
+function updateTradeInVariants() {
+    const DB = getDB();
+    const productId = document.getElementById("tradeInProductId")?.value;
+    const variantSelect = document.getElementById("tradeInVariantId");
+    
+    if (!variantSelect) return;
+    
+    if (!productId) {
+        variantSelect.innerHTML = '<option value="">Select Variant...</option>';
+        return;
+    }
+    
+    const variants = DB.variants.filter(v => v.product_id === productId && v.active !== false);
+    variantSelect.innerHTML = variants.length > 0 
+        ? variants.map(v => `<option value="${v.id}" data-price="${v.price || 0}" data-name="${v.product_name || ''}">
+            ${v.color || ''} ${v.storage || ''} - ${money(v.price || 0)}
+           </option>`).join('')
+        : '<option value="">No variants available</option>';
+    
+    updateTradeInNet();
+}
 
-    // Search functionality
-    const searchInput = document.getElementById("tradeInSearch");
-    if (searchInput) {
-        searchInput.addEventListener("input", (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            filterTradeIns(searchTerm);
-        });
+// Update net payment calculation
+function updateTradeInNet() {
+    const tradeInValue = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
+    const variantSelect = document.getElementById("tradeInVariantId");
+    const saleValueElement = document.getElementById("tradeInSaleValue");
+    const netPaymentElement = document.getElementById("tradeInNetPayment");
+    
+    let saleValue = 0;
+    if (variantSelect && variantSelect.selectedOptions[0]) {
+        saleValue = parseFloat(variantSelect.selectedOptions[0].dataset.price) || 0;
+    }
+    
+    const netPayment = saleValue - tradeInValue;
+    
+    if (saleValueElement) saleValueElement.textContent = money(saleValue);
+    if (netPaymentElement) {
+        netPaymentElement.textContent = money(netPayment);
+        netPaymentElement.style.color = netPayment >= 0 ? 'var(--gn)' : 'var(--dn)';
+    }
+}
+
+// Process trade-in form submission
+async function processTradeInForm(e) {
+    e.preventDefault();
+    
+    const DB = getDB();
+    const sb = getSupabase();
+    const user = getCurrentUser();
+    
+    const storeId = document.getElementById("tradeInStore")?.value;
+    const item_name = document.getElementById("tradeInItemName")?.value.trim();
+    const serial_number = document.getElementById("tradeInSerialNumber")?.value.trim();
+    const condition = document.getElementById("tradeInCondition")?.value;
+    const trade_in_value = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
+    const variant_id = document.getElementById("tradeInVariantId")?.value;
+    const customer_name = document.getElementById("tradeInCustomerName")?.value.trim() || "Walk-in Customer";
+    
+    const variant = DB.variants.find(v => v.id === variant_id);
+    const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
+    const sale_value = variant ? (variant.price || 0) : 0;
+    
+    if (!storeId || !item_name || !serial_number || !condition || !trade_in_value || !variant_id) {
+        toast("Please fill in all required fields", "error");
+        return;
+    }
+    
+    try {
+        const tradeInData = {
+            id: uid(),
+            store_id: storeId,
+            user_id: user?.id,
+            user_name: user?.name,
+            customer_name: customer_name,
+            item_name: item_name,
+            item_description: `${item_name} - ${condition}`,
+            serial_number: serial_number,
+            condition: condition,
+            variant_id: variant_id,
+            trade_in_value: trade_in_value,
+            sale_value: sale_value,
+            status: "pending",
+            notes: "",
+            created_at: now(),
+            updated_at: now()
+        };
+        
+        // Save to Supabase
+        if (sb) {
+            const { error } = await sb.from("trade_in_transactions").insert([tradeInData]);
+            if (error) throw error;
+        }
+        
+        // Save to local DB
+        DB.tradeIns.unshift(tradeInData);
+        
+        // Clear form
+        document.getElementById("tradeInForm").reset();
+        updateTradeInVariants();
+        
+        // Re-render to show new trade-in
+        renderTradeIn();
+        
+        toast("Trade-in created successfully", "success");
+    } catch (error) {
+        console.error("Error creating trade-in:", error);
+        toast("Error creating trade-in: " + error.message, "error");
     }
 }
 
@@ -462,10 +675,9 @@ function viewTradeInDetails(tradeInId) {
 // Export service functions for global access
 const tradeInService = {
     renderTradeIn,
-    approveTradeIn,
-    rejectTradeIn,
-    completeTradeIn,
-    viewTradeInDetails
+    updateTradeInVariants,
+    updateTradeInNet,
+    processTradeInForm
 };
 
 // Make functions available globally for onclick handlers

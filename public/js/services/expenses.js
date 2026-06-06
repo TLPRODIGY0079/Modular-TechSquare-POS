@@ -15,66 +15,140 @@ export function renderExpenses() {
     if (!mainContent) return;
 
     mainContent.innerHTML = `
-        <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 24px; font-weight: 700;">Expense Tracking</h2>
-            <button class="btn btn-primary" id="addExpenseBtn" style="width: auto;">
-                <i class="fas fa-plus"></i> Add Expense
-            </button>
-        </div>
+        <div class="warehouse-container">
+            <div class="warehouse-header">
+                <div>
+                    <h1><i class="fas fa-receipt"></i> Expense Tracking</h1>
+                    <p style="color:var(--tx2);margin-top:8px">Record and track business expenses</p>
+                </div>
+            </div>
 
-        <div class="card">
-            <div class="card-body">
-                <div class="search-bar">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" id="expenseSearch" placeholder="Search expenses...">
-                    <input type="date" class="form-input" id="expenseDateFilter" style="width: auto;">
-                    <select class="filter-select" id="expenseCategoryFilter">
-                        <option value="">All Categories</option>
-                        <option value="Rent">Rent</option>
-                        <option value="Utilities">Utilities</option>
-                        <option value="Supplies">Supplies</option>
-                        <option value="Salaries">Salaries</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Other">Other</option>
-                    </select>
+            <div style="display:grid;grid-template-columns:380px 1fr;gap:20px">
+                <!-- Record Expense Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Record Expense</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="expenseForm">
+                            <div class="form-group">
+                                <label>Store</label>
+                                <select class="form-input" id="expenseStore" required>
+                                    ${user.role === "admin" ? 
+                                        `<option value="">Select Store</option>
+                                        <option value="${STORE1_ID}">Store 1</option>
+                                        <option value="${STORE2_ID}">Store 2</option>` : 
+                                        `<option value="${user.storeId}">${user.storeId === STORE1_ID ? "Store 1" : "Store 2"}</option>`
+                                    }
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select class="form-input" id="expenseCategory" required>
+                                    <option value="">Select category</option>
+                                    <option value="rent">Rent</option>
+                                    <option value="taxes">Taxes</option>
+                                    <option value="in_store">In-Store</option>
+                                    <option value="out_of_store">Out of Store</option>
+                                    <option value="supplies">Supplies</option>
+                                    <option value="salaries">Salaries</option>
+                                    <option value="utilities">Utilities</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Amount (K) *</label>
+                                    <input type="number" class="form-input" id="expenseAmount" required min="0" step="0.01">
+                                </div>
+                                <div class="form-group">
+                                    <label>Date *</label>
+                                    <input type="date" class="form-input" id="expenseDate" required value="${today()}">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input type="text" class="form-input" id="expenseDescription" placeholder="What was this expense for?">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Receipt # (optional)</label>
+                                <input type="text" class="form-input" id="expenseReceipt" placeholder="Receipt number">
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" style="width:100%">
+                                <i class="fas fa-plus"></i> Record Expense
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
-                <div style="margin-top: 20px; overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Category</th>
-                                <th>Description</th>
-                                <th>Amount</th>
-                                <th>Recorded By</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="expensesTableBody">
-                            <!-- Expenses will be rendered here -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--bd);">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 16px; font-weight: 600;">Total Expenses:</span>
-                        <span id="totalExpenses" style="font-size: 24px; font-weight: 700; color: var(--dn);">K0.00</span>
+                <!-- Expense History -->
+                <div class="card">
+                    <div class="card-header">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <h3>Expense History</h3>
+                            <div style="display:flex;gap:12px;align-items:center">
+                                <div class="search-bar">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" class="search-input" id="expenseSearch" placeholder="Search expenses...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body np">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Store</th>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expensesTableBody">
+                                <!-- Expenses will be rendered here -->
+                            </tbody>
+                        </table>
+                        
+                        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--bd)">
+                            <div style="display:flex;justify-content:space-between;align-items:center">
+                                <span style="font-size:16px;font-weight:600">Total Expenses:</span>
+                                <span id="totalExpenses" style="font-size:24px;font-weight:700;color:var(--dn)">K0.00</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     `;
 
-    // Setup event listeners
-    const addExpenseBtn = document.getElementById("addExpenseBtn");
-    if (addExpenseBtn) {
-        addExpenseBtn.addEventListener("click", () => openExpenseModal());
+    // Setup form submission
+    const form = document.getElementById("expenseForm");
+    if (form) {
+        form.addEventListener("submit", processExpenseForm);
     }
 
     // Render expenses table
     renderExpensesTable();
+
+    // Search functionality
+    const searchInput = document.getElementById("expenseSearch");
+    if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll("#expensesTableBody tr");
+            rows.forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+            });
+        });
+    }
 }
 
 // Render expenses table
@@ -84,6 +158,18 @@ function renderExpensesTable() {
     const totalElement = document.getElementById("totalExpenses");
     
     if (!tbody) return;
+
+    const catColors = {
+        rent: "badge-blue",
+        taxes: "badge-red", 
+        in_store: "badge-green",
+        out_of_store: "badge-orange",
+        supplies: "badge-purple",
+        salaries: "badge-cyan",
+        utilities: "badge-yellow",
+        marketing: "badge-pink",
+        other: "badge-gray"
+    };
 
     if (DB.expenses.length === 0) {
         tbody.innerHTML = `
@@ -104,18 +190,15 @@ function renderExpensesTable() {
     // Sort by date descending
     const sortedExpenses = [...DB.expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    tbody.innerHTML = sortedExpenses.map(expense => `
+    tbody.innerHTML = sortedExpenses.slice(0, 30).map(expense => `
         <tr>
             <td>${expense.date}</td>
-            <td><span class="badge badge-blue">${esc(expense.category)}</span></td>
-            <td>${esc(expense.description || '-')}</td>
+            <td><span class="badge ${expense.store_id === STORE1_ID ? "badge-blue" : "badge-green"}">${expense.store_id === STORE1_ID ? "Store 1" : "Store 2"}</span></td>
+            <td><span class="badge ${catColors[expense.category] || "badge-gray"}">${(expense.category || "").replace(/_/g, " ")}</span></td>
             <td><strong>${money(expense.amount)}</strong></td>
-            <td>${esc(expense.user_name || '-')}</td>
+            <td style="font-size:12px;color:var(--tx2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(expense.description || '-')}</td>
             <td>
-                <button class="btn btn-sm btn-outline" onclick="window.expensesService.editExpense('${expense.id}')">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="window.expensesService.deleteExpense('${expense.id}')">
+                <button class="btn btn-sm btn-danger" onclick="window.expensesService.deleteExpense('${expense.id}')" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
@@ -125,6 +208,68 @@ function renderExpensesTable() {
     // Calculate total
     const total = DB.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     if (totalElement) totalElement.textContent = money(total);
+}
+
+// Process expense form submission
+async function processExpenseForm(e) {
+    e.preventDefault();
+    
+    const DB = getDB();
+    const sb = getSupabase();
+    const user = getCurrentUser();
+    
+    const storeId = document.getElementById("expenseStore")?.value;
+    const category = document.getElementById("expenseCategory")?.value;
+    const amount = parseFloat(document.getElementById("expenseAmount")?.value);
+    const date = document.getElementById("expenseDate")?.value;
+    const description = document.getElementById("expenseDescription")?.value.trim();
+    const receiptNumber = document.getElementById("expenseReceipt")?.value.trim();
+
+    if (!storeId || !category || !amount || !date) {
+        toast("Please fill in all required fields", "error");
+        return;
+    }
+
+    if (amount <= 0) {
+        toast("Amount must be greater than 0", "error");
+        return;
+    }
+
+    try {
+        const expenseData = {
+            id: uid(),
+            store_id: storeId,
+            user_id: user?.id,
+            user_name: user?.name,
+            category: category,
+            amount: amount,
+            description: description,
+            date: date,
+            receipt_number: receiptNumber || null,
+            created_at: now()
+        };
+
+        // Save to Supabase
+        if (sb) {
+            const { error } = await sb.from("expenses").insert([expenseData]);
+            if (error) throw error;
+        }
+
+        // Save to local DB
+        DB.expenses.unshift(expenseData);
+
+        // Clear form
+        document.getElementById("expenseForm").reset();
+        document.getElementById("expenseDate").value = today();
+
+        // Re-render table
+        renderExpensesTable();
+
+        toast("Expense recorded successfully", "success");
+    } catch (error) {
+        console.error("Error saving expense:", error);
+        toast("Error saving expense: " + error.message, "error");
+    }
 }
 
 // Open expense modal
@@ -273,8 +418,8 @@ async function deleteExpense(expenseId) {
 // Export service functions for global access
 const expensesService = {
     renderExpenses,
-    editExpense,
-    deleteExpense
+    deleteExpense,
+    processExpenseForm
 };
 
 // Make functions available globally for onclick handlers

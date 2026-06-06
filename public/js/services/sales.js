@@ -316,12 +316,15 @@ async function completeSale() {
     try {
         // Create sale records for each item
         for (const item of cart) {
+            // Generate unique receipt number for each item to avoid constraint violation
+            const itemReceiptNo = receiptNo + "-" + (cart.indexOf(item) + 1);
+            
             const saleData = {
                 id: uid(),
                 store_id: storeId,
                 user_id: user?.id,
                 user_name: user?.name,
-                receipt_number: receiptNo,
+                receipt_number: itemReceiptNo,
                 product_name: item.name,
                 sku: item.sku,
                 variant_label: item.variantLabel,
