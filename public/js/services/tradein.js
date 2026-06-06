@@ -79,23 +79,8 @@ export function renderTradeIn() {
                                     <i class="fas fa-cube"></i> NEW DEVICE
                                 </div>
                                 <div class="form-group">
-                                    <label>Select Product *</label>
-                                    <select class="form-input" id="tradeInProductId" required>
-                                        <option value="">Select Product...</option>
-                                        ${DB.products.filter(p => p.active !== false).map(p => 
-                                            `<option value="${p.id}">${p.name}</option>`
-                                        ).join('')}
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Select Variant *</label>
-                                    <select class="form-input" id="tradeInVariantId" required onchange="updateTradeInNet()">
-                                        <option value="">Select Variant...</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Potential Sale Value</label>
-                                    <div id="tradeInSaleValue" style="font-weight:700;color:var(--gn)">K0.00</div>
+                                    <label>New Device Sale Value (K) *</label>
+                                    <input type="number" class="form-input" id="tradeInSaleValue" required min="0" step="0.01" placeholder="e.g. 12000.00">
                                 </div>
                             </div>
 
@@ -135,11 +120,9 @@ export function renderTradeIn() {
                                 </tr>
                             </thead>
                             <tbody id="recentTradeIns">
-                                ${DB.tradeIns.length === 0 ? 
+                                ${DB.tradeIns.length === 0 ?
                                     `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tx3)">No trade-ins yet</td></tr>` :
                                     DB.tradeIns.slice(0, 10).map(t => {
-                                        const variant = DB.variants.find(v => v.id === t.variant_id);
-                                        const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
                                         return `
                                             <tr>
                                                 <td>${new Date(t.created_at).toLocaleDateString()}</td>
@@ -148,14 +131,14 @@ export function renderTradeIn() {
                                                     <div style="font-size:12px;color:var(--tx2)">${t.serial_number || '-'}</div>
                                                 </td>
                                                 <td>
-                                                    <strong>${product ? product.name : '-'}</strong>
-                                                    <div style="font-size:12px;color:var(--tx2)">${variant ? `${variant.color || ''} ${variant.storage || ''}`.trim() : '-'}</div>
+                                                    <strong>New Device</strong>
+                                                    <div style="font-size:12px;color:var(--tx2)">Sale Value: ${money(t.sale_value)}</div>
                                                 </td>
                                                 <td style="font-weight:700;color:var(--gn)">${money(t.sale_value - t.trade_in_value)}</td>
                                                 <td>
                                                     <span class="badge ${
-                                                        t.status === 'completed' ? 'badge-green' : 
-                                                        t.status === 'approved' ? 'badge-blue' : 
+                                                        t.status === 'completed' ? 'badge-green' :
+                                                        t.status === 'approved' ? 'badge-blue' :
                                                         t.status === 'rejected' ? 'badge-red' : 'badge-orange'
                                                     }">${t.status}</span>
                                                 </td>
@@ -177,59 +160,45 @@ export function renderTradeIn() {
         form.addEventListener("submit", processTradeInForm);
     }
 
-    // Setup product change event
-    const productIdSelect = document.getElementById("tradeInProductId");
-    if (productIdSelect) {
-        productIdSelect.addEventListener("change", updateTradeInVariants);
+    // Setup input change events for net calculation
+    const tradeInValue = document.getElementById("tradeInValue");
+    const saleValue = document.getElementById("tradeInSaleValue");
+
+    if (tradeInValue) {
+        tradeInValue.addEventListener("input", window.updateTradeInNet);
+    }
+    if (saleValue) {
+        saleValue.addEventListener("input", window.updateTradeInNet);
     }
 
-    // Initialize variants dropdown
-    updateTradeInVariants();
+    // Initial net calculation
+    window.updateTradeInNet();
 }
 
-// Update trade-in variants based on selected product
-function updateTradeInVariants() {
-    const DB = getDB();
-    const productId = document.getElementById("tradeInProductId")?.value;
-    const variantSelect = document.getElementById("tradeInVariantId");
-    
-    if (!variantSelect) return;
-    
-    if (!productId) {
-        variantSelect.innerHTML = '<option value="">Select Variant...</option>';
-        return;
+// Update trade-in net payment calculation
+window.updateTradeInNet = function() {
+    const tradeInValue = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
+    const saleValue = parseFloat(document.getElementById("tradeInSaleValue")?.value) || 0;
+    const netPayment = saleValue - tradeInValue;
+
+    const netPaymentElement = document.getElementById("tradeInNetPayment");
+    if (netPaymentElement) {
+        netPaymentElement.textContent = money(netPayment);
     }
-    
-    const variants = DB.variants.filter(v => v.product_id === productId && v.active !== false);
-    variantSelect.innerHTML = variants.length > 0 
-        ? variants.map(v => `<option value="${v.id}" data-price="${v.price || 0}" data-name="${v.product_name || ''}">
-            ${v.color || ''} ${v.storage || ''} - ${money(v.price || 0)}
-           </option>`).join('')
-        : '<option value="">No variants available</option>';
-    
-    updateTradeInNet();
 }
 
 // Update net payment calculation
-function updateTradeInNet() {
+window.updateTradeInNet = function() {
     const tradeInValue = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
-    const variantSelect = document.getElementById("tradeInVariantId");
-    const saleValueElement = document.getElementById("tradeInSaleValue");
-    const netPaymentElement = document.getElementById("tradeInNetPayment");
-    
-    let saleValue = 0;
-    if (variantSelect && variantSelect.selectedOptions[0]) {
-        saleValue = parseFloat(variantSelect.selectedOptions[0].dataset.price) || 0;
-    }
-    
+    const saleValue = parseFloat(document.getElementById("tradeInSaleValue")?.value) || 0;
     const netPayment = saleValue - tradeInValue;
-    
-    if (saleValueElement) saleValueElement.textContent = money(saleValue);
+
+    const netPaymentElement = document.getElementById("tradeInNetPayment");
     if (netPaymentElement) {
         netPaymentElement.textContent = money(netPayment);
         netPaymentElement.style.color = netPayment >= 0 ? 'var(--gn)' : 'var(--dn)';
     }
-}
+};
 
 // Process trade-in form submission
 async function processTradeInForm(e) {
@@ -244,14 +213,10 @@ async function processTradeInForm(e) {
     const serial_number = document.getElementById("tradeInSerialNumber")?.value.trim();
     const condition = document.getElementById("tradeInCondition")?.value;
     const trade_in_value = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
-    const variant_id = document.getElementById("tradeInVariantId")?.value;
+    const sale_value = parseFloat(document.getElementById("tradeInSaleValue")?.value) || 0;
     const customer_name = document.getElementById("tradeInCustomerName")?.value.trim() || "Walk-in Customer";
-    
-    const variant = DB.variants.find(v => v.id === variant_id);
-    const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
-    const sale_value = variant ? (variant.price || 0) : 0;
-    
-    if (!storeId || !item_name || !serial_number || !condition || !trade_in_value || !variant_id) {
+
+    if (!storeId || !item_name || !serial_number || !condition || !trade_in_value || !sale_value) {
         toast("Please fill in all required fields", "error");
         return;
     }
@@ -267,7 +232,6 @@ async function processTradeInForm(e) {
             item_description: `${item_name} - ${condition}`,
             serial_number: serial_number,
             condition: condition,
-            variant_id: variant_id,
             trade_in_value: trade_in_value,
             sale_value: sale_value,
             status: "pending",
@@ -287,7 +251,6 @@ async function processTradeInForm(e) {
         
         // Clear form
         document.getElementById("tradeInForm").reset();
-        updateTradeInVariants();
         
         // Re-render to show new trade-in
         renderTradeIn();
@@ -681,7 +644,6 @@ function viewTradeInDetails(tradeInId) {
 // Export service functions for global access
 const tradeInService = {
     renderTradeIn,
-    updateTradeInVariants,
     updateTradeInNet,
     processTradeInForm
 };
