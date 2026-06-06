@@ -513,99 +513,342 @@ function formatDate(dateStr) {
 // Render sales history page
 export function renderHistory() {
     const DB = getDB();
+    const user = getCurrentUser();
     const mainContent = $("mainContent");
     
     if (!mainContent) return;
 
     mainContent.innerHTML = `
-        <div style="margin-bottom: 24px;">
-            <h2 style="font-size: 24px; font-weight: 700;">Sales History</h2>
-        </div>
-
-        <div class="card">
-            <div class="card-body">
-                <div class="search-bar">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" id="salesSearch" placeholder="Search by receipt, customer, or product...">
-                    <input type="date" class="form-input" id="salesDateFilter" style="width: auto;">
+        <div class="warehouse-container">
+            <div class="warehouse-header">
+                <div>
+                    <h1><i class="fas fa-clock-rotate-left"></i> Sales History</h1>
+                    <p style="color:var(--tx2);margin-top:8px">View and analyze past sales transactions</p>
                 </div>
+                <div style="display:flex;gap:12px">
+                    <button class="btn btn-outline" id="exportXlsBtn">
+                        <i class="fas fa-file-excel"></i> Excel
+                    </button>
+                    <button class="btn btn-outline" id="exportPdfBtn">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                </div>
+            </div>
 
-                <div style="margin-top: 20px; overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Receipt</th>
-                                <th>Date</th>
-                                <th>Customer</th>
-                                <th>Products</th>
-                                <th>Total</th>
-                                <th>Payment</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="salesHistoryBody">
-                            <!-- Sales will be rendered here -->
-                        </tbody>
-                    </table>
+            <div class="search-bar" style="margin-bottom:16px">
+                <div class="form-group" style="margin:0">
+                    <label style="font-size:11px;margin-bottom:4px">Date</label>
+                    <input type="date" class="form-input" id="histDate" value="${today()}" style="padding:8px 12px">
+                </div>
+                <div class="search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input class="search-input" id="histSearch" placeholder="Search receipt or customer...">
+                </div>
+                <select class="filter-select" id="histStore">
+                    <option value="">All Stores</option>
+                    <option value="${STORE1_ID}">Store 1</option>
+                    <option value="${STORE2_ID}">Store 2</option>
+                </select>
+            </div>
+
+            <div id="histStats" style="margin-bottom:20px"></div>
+
+            <div class="card">
+                <div class="card-body np">
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Products</th>
+                                    <th>Date & Time</th>
+                                    <th>Store</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Commission</th>
+                                    <th>Cashing</th>
+                                    <th>Cashier</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="histBody">
+                                <!-- Sales will be rendered here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 
-    renderSalesHistoryTable();
+    // Setup event listeners
+    const dateInput = document.getElementById("histDate");
+    if (dateInput) {
+        dateInput.addEventListener("change", renderHistTable);
+    }
+
+    const searchInput = document.getElementById("histSearch");
+    if (searchInput) {
+        searchInput.addEventListener("input", renderHistTable);
+    }
+
+    const storeSelect = document.getElementById("histStore");
+    if (storeSelect) {
+        storeSelect.addEventListener("change", renderHistTable);
+    }
+
+    const exportXlsBtn = document.getElementById("exportXlsBtn");
+    if (exportXlsBtn) {
+        exportXlsBtn.addEventListener("click", exportSalesExcel);
+    }
+
+    const exportPdfBtn = document.getElementById("exportPdfBtn");
+    if (exportPdfBtn) {
+        exportPdfBtn.addEventListener("click", exportSalesPDF);
+    }
+
+    // Render the table
+    renderHistTable();
+}
+
+// Get filtered sales based on current filters
+function getFilteredSales() {
+    const DB = getDB();
+    const date = document.getElementById("histDate")?.value || today();
+    const q = (document.getElementById("histSearch")?.value || "").toLowerCase();
+    const sf = document.getElementById("histStore")?.value || "";
+
+    const daySales = DB.sales.filter((s) => {
+        const d = s.date_str || s.created_at?.slice(0, 10);
+        if (d !== date) return false;
+        if (sf && s.store_id !== sf) return false;
+        return true;
+    });
+
+    // Group by receipt and sum totals
+    const receiptMap = new Map();
+    daySales.forEach((s) => {
+        const key = s.receipt_number;
+        if (!receiptMap.has(key)) {
+            receiptMap.set(key, {
+                receipt_number: s.receipt_number,
+                store_id: s.store_id,
+                customer_name: s.customer_name,
+                user_name: s.user_name,
+                payment_method: s.payment_method,
+                created_at: s.created_at,
+                date_str: s.date_str,
+                total: 0,
+                discount: 0,
+                items: [],
+            });
+        }
+        const receipt = receiptMap.get(key);
+        receipt.total += Number(s.total || 0);
+        receipt.discount += Number(s.discount || 0);
+        receipt.items.push(s);
+    });
+
+    const receipts = Array.from(receiptMap.values());
+
+    // Apply search filter
+    return receipts.filter((r) => {
+        if (
+            q &&
+            !(r.receipt_number || "").toLowerCase().includes(q) &&
+            !(r.customer_name || "").toLowerCase().includes(q)
+        )
+            return false;
+        return true;
+    });
+}
+
+// Render the sales history table
+function renderHistTable() {
+    const DB = getDB();
+    const user = getCurrentUser();
+    const body = document.getElementById("histBody");
+    if (!body) return;
+
+    const sales = getFilteredSales();
+    const rev = sales.reduce((a, s) => a + Number(s.total || 0), 0);
+    const itemCount = sales.reduce((a, s) => a + s.items.length, 0);
+    
+    // Render stats
+    const statsDiv = document.getElementById("histStats");
+    if (statsDiv) {
+        statsDiv.innerHTML = `
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:var(--ac3);color:var(--ac)">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="stat-value">${money(rev)}</div>
+                    <div class="stat-label">Revenue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:var(--gn2);color:var(--gn)">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div class="stat-value">${sales.length}</div>
+                    <div class="stat-label">Transactions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:var(--wn2);color:var(--wn)">
+                        <i class="fas fa-boxes-stacked"></i>
+                    </div>
+                    <div class="stat-value">${itemCount}</div>
+                    <div class="stat-label">Items Sold</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Check if user is cashier to apply store filtering
+    const isCashier = user.role === "cashier";
+    const filteredSales = isCashier ? sales.filter((s) => s.store_id === user.storeId) : sales;
+
+    body.innerHTML = filteredSales.length === 0
+        ? `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--tx3)">No sales found</td></tr>`
+        : filteredSales.map((s) => {
+            // Get commission for this receipt
+            const receiptCommissions = (DB.commissionRecords || []).filter(
+                (c) => c.receipt_number === s.receipt_number,
+            );
+
+            // Build product list with commissions
+            const productList = s.items.map((item) => {
+                const itemCommissionFromRate = Number(item.commission_rate || 0) * Number(item.quantity || 1);
+                const itemCommissionFromRecords = receiptCommissions
+                    .filter((c) => (item.sku && c.variant_sku === item.sku) || c.product_name === item.product_name)
+                    .reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+                const itemCommission = itemCommissionFromRate > 0 ? itemCommissionFromRate : itemCommissionFromRecords;
+                const itemSubtotal = (item.unit_price || 0) * (item.quantity || 1);
+
+                return `<div style="margin-bottom:4px">
+                    <span style="font-weight:600">${esc(item.product_name)}</span>
+                    ${item.variant_label ? `<span style="color:var(--tx3);font-size:11px"> (${esc(item.variant_label)})</span>` : ""}
+                    <span style="color:var(--tx3);font-size:11px"> ×${item.quantity}</span>
+                    <span style="color:var(--tx2);font-size:11px"> = ${money(itemSubtotal)}</span>
+                    ${itemCommission > 0 ? `<span style="color:var(--wn);font-size:11px;margin-left:8px">📊 ${money(itemCommission)}</span>` : ""}
+                </div>`;
+            }).join("");
+
+            // Calculate total commission
+            const totalCommissionFromRates = s.items.reduce(
+                (sum, item) => sum + Number(item.commission_rate || 0) * Number(item.quantity || 1),
+                0,
+            );
+            const totalCommissionFromRecords = receiptCommissions.reduce(
+                (sum, c) => sum + (c.commission_amount || 0),
+                0,
+            );
+            const totalCommission = totalCommissionFromRates > 0 ? totalCommissionFromRates : totalCommissionFromRecords;
+
+            // Type badges
+            const typeBadge = s.receipt_number.startsWith('TI-') 
+                ? '<span class="badge badge-orange" style="font-size:9px;margin-bottom:4px"><i class="fas fa-rotate"></i> Trade-In</span><br>' 
+                : s.receipt_number.startsWith('LB-SALE-') 
+                    ? '<span class="badge badge-purple" style="font-size:9px;margin-bottom:4px"><i class="fas fa-calendar-check"></i> Layby</span><br>' 
+                    : '';
+
+            const cashingAmount = (s.total || 0) - totalCommission;
+
+            return `<tr>
+                <td style="min-width:200px">${typeBadge}${productList}</td>
+                <td style="font-size:12px;color:var(--tx2);white-space:nowrap">${
+                    s.created_at
+                        ? new Date(s.created_at).toLocaleString("en", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        })
+                        : "—"
+                }</td>
+                <td><span class="badge ${s.store_id === STORE1_ID ? "badge-blue" : "badge-green"}">${s.store_id === STORE1_ID ? "Store 1" : "Store 2"}</span></td>
+                <td style="font-size:13px">${esc(s.customer_name || "Walk-in")}</td>
+                <td style="font-weight:700">${money(s.total)}</td>
+                <td style="font-weight:600;color:var(--wn)">${money(totalCommission)}</td>
+                <td style="font-weight:700;color:var(--gn)">${money(cashingAmount)}</td>
+                <td style="font-size:12px;color:var(--tx2)">${esc(s.user_name || "—")}</td>
+                <td><button class="btn btn-sm btn-outline" onclick="window.salesService.viewReceipt('${s.receipt_number}')"><i class="fas fa-eye"></i></button></td>
+            </tr>`;
+        }).join('');
+
+    // Setup view receipt buttons
+    body.querySelectorAll("button[onclick*='viewReceipt']").forEach((b) => {
+        // Already handled by the global window.salesService.viewReceipt
+    });
+}
+
+// Export sales to Excel
+function exportSalesExcel() {
+    if (!window.XLSX) {
+        toast("XLSX library not loaded", "error");
+        return;
+    }
+    const sales = getFilteredSales();
+    if (!sales.length) {
+        toast("No data to export", "error");
+        return;
+    }
+
+    const rows = sales.map((s) => ({
+        'Receipt Number': s.receipt_number,
+        'Date': s.created_at ? new Date(s.created_at).toLocaleDateString() : '—',
+        'Store': s.store_id === STORE1_ID ? 'Store 1' : 'Store 2',
+        'Customer': s.customer_name || 'Walk-in',
+        'Total': s.total,
+        'Payment Method': s.payment_method,
+        'Cashier': s.user_name
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sales");
+    XLSX.writeFile(wb, `sales_report_${today()}.xlsx`);
+    
+    toast("Sales report exported successfully", "success");
+}
+
+// Export sales to PDF
+function exportSalesPDF() {
+    if (!window.jspdf) {
+        toast("jsPDF library not loaded", "error");
+        return;
+    }
+    const sales = getFilteredSales();
+    if (!sales.length) {
+        toast("No data to export", "error");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text("Sales Report", 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Date: ${today()}`, 14, 30);
+    
+    let yPos = 45;
+    sales.forEach((s, i) => {
+        if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+        }
+        doc.text(`${i + 1}. ${s.receipt_number} - ${money(s.total)} - ${s.customer_name || 'Walk-in'}`, 14, yPos);
+        yPos += 8;
+    });
+
+    doc.save(`sales_report_${today()}.pdf`);
+    toast("Sales report exported successfully", "success");
 }
 
 // Render sales history table
 function renderSalesHistoryTable() {
-    const DB = getDB();
-    const tbody = document.getElementById("salesHistoryBody");
-    if (!tbody) return;
-
-    if (DB.sales.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" style="text-align: center; padding: 40px;">
-                    <div class="empty-state">
-                        <i class="fas fa-receipt"></i>
-                        <h3>No sales found</h3>
-                        <p>Start making sales to see history here</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    // Group by receipt number
-    const salesByReceipt = {};
-    DB.sales.forEach(sale => {
-        if (!salesByReceipt[sale.receipt_number]) {
-            salesByReceipt[sale.receipt_number] = [];
-        }
-        salesByReceipt[sale.receipt_number].push(sale);
-    });
-
-    tbody.innerHTML = Object.entries(salesByReceipt).map(([receiptNo, sales]) => {
-        const firstSale = sales[0];
-        const total = sales.reduce((sum, s) => sum + s.total, 0);
-        const productNames = [...new Set(sales.map(s => s.product_name))].slice(0, 2).join(', ');
-        
-        return `
-            <tr>
-                <td><strong>${receiptNo}</strong></td>
-                <td>${formatDate(firstSale.created_at)}</td>
-                <td>${esc(firstSale.customer_name || 'Walk-in')}</td>
-                <td>${esc(productNames)}${sales.length > 2 ? '...' : ''}</td>
-                <td><strong>${money(total)}</strong></td>
-                <td><span class="badge badge-blue">${firstSale.payment_method}</span></td>
-                <td>
-                    <button class="btn btn-sm btn-outline" onclick="window.salesService.viewReceipt('${receiptNo}')">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-    }).join('');
+    // This function is deprecated - use renderHistTable instead
+    renderHistTable();
 }
 
 // View receipt
@@ -623,8 +866,23 @@ const salesService = {
     completeSale,
     printReceipt,
     renderHistory,
-    viewReceipt
+    viewReceipt,
+    getFilteredSales,
+    renderHistTable,
+    exportSalesExcel,
+    exportSalesPDF
 };
+
+// Helper function to format date
+function formatDate(dateStr) {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-ZA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+    });
+}
 
 // Make functions available globally for onclick handlers
 if (typeof window !== 'undefined') {

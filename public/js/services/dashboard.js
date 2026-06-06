@@ -211,173 +211,192 @@ export function renderReports() {
 
     // Calculate report metrics
     const todaySales = DB.sales.filter(s => s.date_str === today());
-    const totalRevenue = DB.sales.reduce((sum, s) => sum + s.total, 0);
-    const totalProfit = DB.sales.reduce((sum, s) => sum + (s.profit || 0), 0);
-    const totalCommission = DB.commissionRecords.filter(r => r.status === 'pending').reduce((sum, r) => sum + r.commission_amount, 0);
+    const todayCommissions = (DB.commissionRecords || []).filter(c => c.date === today());
 
-    mainContent.innerHTML = `
-        <div style="margin-bottom: 24px;">
-            <h2 style="font-size: 24px; font-weight: 700;">End of Day Reports</h2>
-        </div>
-
-        <div class="tabs">
-            <div class="tab active" data-tab="summary">Summary</div>
-            <div class="tab" data-tab="sales">Sales Report</div>
-            <div class="tab" data-tab="commissions">Commissions</div>
-        </div>
-
-        <div class="card">
-            <div class="card-body">
-                <div id="reportContent">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon" style="background: var(--ac3); color: var(--ac);">
-                                <i class="fas fa-chart-line"></i>
-                            </div>
-                            <div class="stat-value">${money(totalRevenue)}</div>
-                            <div class="stat-label">Total Revenue</div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon" style="background: var(--gn2); color: var(--gn);">
-                                <i class="fas fa-dollar-sign"></i>
-                            </div>
-                            <div class="stat-value">${money(totalProfit)}</div>
-                            <div class="stat-label">Total Profit</div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon" style="background: var(--wn2); color: var(--wn);">
-                                <i class="fas fa-receipt"></i>
-                            </div>
-                            <div class="stat-value">${DB.sales.length}</div>
-                            <div class="stat-label">Total Transactions</div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon" style="background: var(--dn2); color: var(--dn);">
-                                <i class="fas fa-users"></i>
-                            </div>
-                            <div class="stat-value">${money(totalCommission)}</div>
-                            <div class="stat-label">Pending Commissions</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Setup tabs
-    const tabs = document.querySelectorAll(".tab");
-    tabs.forEach(tab => {
-        tab.addEventListener("click", () => {
-            tabs.forEach(t => t.classList.remove("active"));
-            tab.classList.add("active");
-            
-            const tabName = tab.dataset.tab;
-            updateReportContent(tabName);
-        });
+    // Debug logging for commission data
+    console.log("📊 End of Day Report Debug:", {
+        todaySalesCount: todaySales.length,
+        todayCommissionsCount: todayCommissions.length,
+        totalCommissionRecords: (DB.commissionRecords || []).length,
+        sampleCommission: todayCommissions[0] || "No commissions today",
+        todayDate: today()
     });
-}
 
-// Update report content based on tab
-function updateReportContent(tabName) {
-    const DB = getDB();
-    const container = document.getElementById("reportContent");
-    if (!container) return;
+    // Calculate COGS for today's sales
+    const todayCOGS = todaySales.reduce((sum, s) => {
+        const quantity = Number(s.quantity || 1);
+        const costPrice = Number(s.cost_price || 0);
+        return sum + costPrice * quantity;
+    }, 0);
 
-    switch (tabName) {
-        case 'summary':
-            // Show summary (default)
-            renderReports(); // Re-render with default view
-            break;
-        case 'sales':
-            // Show sales report
-            container.innerHTML = `
-                <h3 style="margin-bottom: 16px;">Sales Report</h3>
-                <button class="btn btn-outline" onclick="window.dashboardService.exportSalesReport()">
-                    <i class="fas fa-download"></i> Export CSV
-                </button>
-                <p style="color: var(--tx2); margin-top: 12px;">Detailed sales reporting coming soon</p>
-            `;
-            break;
-        case 'commissions':
-            // Show commissions report
-            const pendingCommissions = DB.commissionRecords.filter(r => r.status === 'pending');
-            container.innerHTML = `
-                <h3 style="margin-bottom: 16px;">Commission Report</h3>
-                ${pendingCommissions.length === 0 ? `
-                    <div class="empty-state">
-                        <i class="fas fa-check-circle"></i>
-                        <h3>No pending commissions</h3>
-                    </div>
-                ` : `
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Agent</th>
-                                <th>Amount</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${pendingCommissions.map(commission => `
-                                <tr>
-                                    <td>${esc(commission.agent_name || 'Unknown')}</td>
-                                    <td><strong>${money(commission.commission_amount)}</strong></td>
-                                    <td>${commission.sale_date || '-'}</td>
-                                    <td><span class="badge badge-orange">${commission.status}</span></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `}
-            `;
-            break;
-    }
-}
+    // Calculate COGS by store
+    const s1Sales = todaySales.filter(s => s.store_id === STORE1_ID);
+    const s2Sales = todaySales.filter(s => s.store_id === STORE2_ID);
+    const s1COGS = s1Sales.reduce((sum, s) => sum + Number(s.cost_price || 0) * Number(s.quantity || 1), 0);
+    const s2COGS = s2Sales.reduce((sum, s) => sum + Number(s.cost_price || 0) * Number(s.quantity || 1), 0);
 
-// Export sales report
-function exportSalesReport() {
-    const DB = getDB();
-    
-    if (typeof XLSX === 'undefined') {
-        toast("Excel export not available", "error");
-        return;
-    }
+    // Group by receipt and sum totals
+    const receiptMap = new Map();
+    todaySales.forEach((s) => {
+        const key = s.receipt_number;
+        if (!receiptMap.has(key)) {
+            receiptMap.set(key, {
+                receipt_number: s.receipt_number,
+                store_id: s.store_id,
+                payment_method: s.payment_method,
+                total: 0
+            });
+        }
+        const receipt = receiptMap.get(key);
+        receipt.total += Number(s.total || 0);
+    });
 
-    try {
-        const salesData = DB.sales.map(sale => ({
-            'Receipt Number': sale.receipt_number,
-            'Date': sale.date_str,
-            'Customer': sale.customer_name || 'Walk-in',
-            'Product': sale.product_name,
-            'Variant': sale.variant_label,
-            'Quantity': sale.quantity,
-            'Unit Price': sale.unit_price,
-            'Total': sale.total,
-            'Payment Method': sale.payment_method,
-            'Sales Person': sale.user_name
-        }));
+    const receipts = Array.from(receiptMap.values());
+    const s1 = receipts.filter(s => s.store_id === STORE1_ID);
+    const s2 = receipts.filter(s => s.store_id === STORE2_ID);
+    const s1Rev = s1.reduce((a, s) => a + Number(s.total || 0), 0);
+    const s2Rev = s2.reduce((a, s) => a + Number(s.total || 0), 0);
+    const s1Exp = DB.expenses
+        .filter(e => e.store_id === STORE1_ID && (e.date || e.created_at?.slice(0, 10)) === today())
+        .reduce((a, e) => a + Number(e.amount || 0), 0);
+    const s2Exp = DB.expenses
+        .filter(e => e.store_id === STORE2_ID && (e.date || e.created_at?.slice(0, 10)) === today())
+        .reduce((a, e) => a + Number(e.amount || 0), 0);
 
-        const ws = XLSX.utils.json_to_sheet(salesData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Sales");
-        XLSX.writeFile(wb, `sales_report_${today()}.xlsx`);
-        
-        toast("Sales report exported successfully", "success");
-    } catch (error) {
-        console.error("Export error:", error);
-        toast("Error exporting report: " + error.message, "error");
-    }
+    // Commission calculations
+    // Primary: compute directly from sale rows using commission_rate * quantity
+    const s1CommFromSales = s1Sales.reduce((a, s) => a + Number(s.commission_rate || 0) * Number(s.quantity || 1), 0);
+    const s2CommFromSales = s2Sales.reduce((a, s) => a + Number(s.commission_rate || 0) * Number(s.quantity || 1), 0);
+
+    // Fallback: use commission_records if sale rows have no commission_rate
+    const s1Commissions = todayCommissions.filter(c => c.store_id === STORE1_ID);
+    const s2Commissions = todayCommissions.filter(c => c.store_id === STORE2_ID);
+    const s1CommFromRecords = s1Commissions.reduce((a, c) => a + Number(c.commission_amount || 0), 0);
+    const s2CommFromRecords = s2Commissions.reduce((a, c) => a + Number(c.commission_amount || 0), 0);
+
+    const s1CommTotal = s1CommFromSales > 0 ? s1CommFromSales : s1CommFromRecords;
+    const s2CommTotal = s2CommFromSales > 0 ? s2CommFromSales : s2CommFromRecords;
+
+    // Calculate Gross Profit and Net Profit by store
+    const s1GrossProfit = s1Rev - s1COGS;
+    const s2GrossProfit = s2Rev - s2COGS;
+    const s1NetProfit = s1GrossProfit - s1Exp - s1CommTotal;
+    const s2NetProfit = s2GrossProfit - s2Exp - s2CommTotal;
+
+    // Group commissions by user
+    const commissionByUser = new Map();
+    todayCommissions.forEach((c) => {
+        const key = c.user_id;
+        if (!commissionByUser.has(key)) {
+            commissionByUser.set(key, {
+                user_name: c.user_name,
+                store_id: c.store_id,
+                total: 0,
+                count: 0
+            });
+        }
+        const user = commissionByUser.get(key);
+        user.total += Number(c.commission_amount || 0);
+        user.count++;
+    });
+    const commissionUsers = Array.from(commissionByUser.values());
+
+    const payBreakdown = (sales) => {
+        const methods = ["cash", "card", "mobile_money", "bank_transfer"];
+        return methods
+            .map((m) => {
+                const t = sales
+                    .filter((s) => s.payment_method === m)
+                    .reduce((a, s) => a + Number(s.total || 0), 0);
+                return t > 0
+                    ? `<div class="receipt-row"><span style="text-transform:capitalize">${m.replace("_", " ")}</span><span>${money(t)}</span></div>`
+                    : "";
+            })
+            .join("");
+    };
+
+    mainContent.innerHTML = `<div class="fade-in">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div class="card"><div class="card-header"><h3>Store 1 — ${today()}</h3></div><div class="card-body">
+        <div class="receipt-row" style="font-size:18px;font-weight:800;margin-bottom:12px"><span>Revenue</span><span>${money(s1Rev)}</span></div>
+        ${payBreakdown(s1)}
+        <div class="receipt-row" style="margin-top:12px;color:var(--tx2)"><span>COGS</span><span>-${money(s1COGS)}</span></div>
+        <div class="receipt-row" style="font-weight:600;color:var(--ac)"><span>Gross Profit</span><span>${money(s1GrossProfit)}</span></div>
+        <div class="receipt-row" style="margin-top:8px;color:var(--dn)"><span>Expenses</span><span>-${money(s1Exp)}</span></div>
+        <div class="receipt-row" style="color:var(--wn)"><span>Commissions</span><span>-${money(s1CommTotal)}</span></div>
+        <div class="receipt-row" style="font-weight:700;font-size:16px;padding-top:8px;border-top:2px solid var(--bd)"><span>Net Profit</span><span>${money(s1NetProfit)}</span></div>
+        <div style="margin-top:12px;font-size:12px;color:var(--tx2)">${s1.length} transactions</div>
+      </div></div>
+      <div class="card"><div class="card-header"><h3>Store 2 — ${today()}</h3></div><div class="card-body">
+        <div class="receipt-row" style="font-size:18px;font-weight:800;margin-bottom:12px"><span>Revenue</span><span>${money(s2Rev)}</span></div>
+        ${payBreakdown(s2)}
+        <div class="receipt-row" style="margin-top:12px;color:var(--tx2)"><span>COGS</span><span>-${money(s2COGS)}</span></div>
+        <div class="receipt-row" style="font-weight:600;color:var(--ac)"><span>Gross Profit</span><span>${money(s2GrossProfit)}</span></div>
+        <div class="receipt-row" style="margin-top:8px;color:var(--dn)"><span>Expenses</span><span>-${money(s2Exp)}</span></div>
+        <div class="receipt-row" style="color:var(--wn)"><span>Commissions</span><span>-${money(s2CommTotal)}</span></div>
+        <div class="receipt-row" style="font-weight:700;font-size:16px;padding-top:8px;border-top:2px solid var(--bd)"><span>Net Profit</span><span>${money(s2NetProfit)}</span></div>
+        <div style="margin-top:12px;font-size:12px;color:var(--tx2)">${s2.length} transactions</div>
+      </div></div>
+    </div>
+
+    <div class="card"><div class="card-header"><h3>System-Wide Total</h3></div><div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+        <div><div style="font-size:11px;color:var(--tx2)">Total Revenue</div><div style="font-size:22px;font-weight:800">${money(s1Rev + s2Rev)}</div></div>
+        <div><div style="font-size:11px;color:var(--tx2)">COGS</div><div style="font-size:22px;font-weight:800;color:var(--tx2)">${money(s1COGS + s2COGS)}</div></div>
+        <div><div style="font-size:11px;color:var(--tx2)">Gross Profit</div><div style="font-size:22px;font-weight:800;color:var(--ac)">${money(s1GrossProfit + s2GrossProfit)}</div></div>
+        <div><div style="font-size:11px;color:var(--tx2)">Expenses</div><div style="font-size:22px;font-weight:800;color:var(--dn)">${money(s1Exp + s2Exp)}</div></div>
+        <div><div style="font-size:11px;color:var(--tx2)">Commissions</div><div style="font-size:22px;font-weight:800;color:var(--wn)">${money(s1CommTotal + s2CommTotal)}</div></div>
+        <div><div style="font-size:11px;color:var(--tx2)">Net Profit</div><div style="font-size:22px;font-weight:800;color:var(--gn)">${money(s1NetProfit + s2NetProfit)}</div></div>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:var(--tx2);text-align:center">${receipts.length} total transactions</div>
+    </div></div>
+
+    <div class="card">
+      <div class="card-header"><h3>Commission Breakdown by Staff</h3></div>
+      <div class="card-body np">
+        ${
+            commissionUsers.length > 0
+                ? `<table>
+          <thead>
+            <tr>
+              <th>Staff Member</th>
+              <th>Store</th>
+              <th>Sales Count</th>
+              <th>Commission Earned</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${commissionUsers
+                .map(
+                    (u) => `<tr>
+              <td style="font-weight:600">${esc(u.user_name)}</td>
+              <td><span class="badge ${u.store_id === STORE1_ID ? "store-badge-1" : "store-badge-2"}">${u.store_id === STORE1_ID ? "Store 1" : "Store 2"}</span></td>
+              <td>${u.count}</td>
+              <td style="font-weight:700;color:var(--gn)">${money(u.total)}</td>
+            </tr>`,
+                )
+                .join("")}
+            <tr style="background:var(--bg4);font-weight:700">
+              <td colspan="3" style="text-align:right;padding-right:20px">TOTAL COMMISSIONS:</td>
+              <td style="color:var(--wn);font-size:16px">${money(s1CommTotal + s2CommTotal)}</td>
+            </tr>
+          </tbody>
+        </table>`
+                : `<div style="text-align:center;padding:40px;color:var(--tx2)">
+          <i class="fas fa-info-circle" style="font-size:32px;margin-bottom:12px;opacity:0.3;display:block"></i>
+          <div style="font-size:14px">No commission records for today</div>
+          <div style="font-size:12px;margin-top:4px;color:var(--tx3)">Commissions will appear here when products with commission rates are sold</div>
+        </div>`
+        }
+      </div>
+    </div>
+  </div>`;
 }
 
 // Export service functions for global access
 const dashboardService = {
     renderDashboard,
-    renderReports,
-    exportSalesReport
+    renderReports
 };
 
 // Make functions available globally for onclick handlers
