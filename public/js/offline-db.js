@@ -4,7 +4,7 @@
 class OfflineDB {
     constructor() {
         this.dbName = 'TechSquarePOS';
-        this.dbVersion = 1;
+        this.dbVersion = 2; // Incremented to trigger schema update
         this.db = null;
         this.syncQueue = [];
     }
@@ -21,8 +21,20 @@ class OfflineDB {
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+                const currentVersion = event.oldVersion;
 
-                // Create object stores
+                // Migration from version 1 to 2: rename stores from camelCase to snake_case
+                if (currentVersion < 2) {
+                    // Delete old camelCase stores if they exist
+                    const oldStores = ['serializedItems', 'stockTransfers', 'tradeIns', 'laybys', 'laybyPayments', 'commissionRecords'];
+                    oldStores.forEach(storeName => {
+                        if (db.objectStoreNames.contains(storeName)) {
+                            db.deleteObjectStore(storeName);
+                        }
+                    });
+                }
+
+                // Create object stores with snake_case names
                 if (!db.objectStoreNames.contains('products')) {
                     db.createObjectStore('products', { keyPath: 'id' });
                 }
@@ -151,3 +163,21 @@ class OfflineDB {
 
 // Initialize the offline database
 window.offlineDB = new OfflineDB();
+
+// Auto-initialize when script loads
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            await window.offlineDB.init();
+            console.log('✅ OfflineDB initialized successfully');
+        } catch (error) {
+            console.error('❌ OfflineDB initialization failed:', error);
+        }
+    });
+} else {
+    window.offlineDB.init().then(() => {
+        console.log('✅ OfflineDB initialized successfully');
+    }).catch(error => {
+        console.error('❌ OfflineDB initialization failed:', error);
+    });
+}

@@ -112,10 +112,14 @@ async function initOfflineDB() {
 
     try {
         offlineDB = window.offlineDB;
-        await offlineDB.init();
+        // Only init if not already initialized
+        if (!offlineDB.db) {
+            await offlineDB.init();
+        }
         log("OfflineDB initialized successfully");
     } catch (error) {
         console.error("OfflineDB initialization failed:", error);
+        // Don't throw - allow app to continue without offline support
     }
 }
 
@@ -125,7 +129,7 @@ async function loadDB() {
         log("Loading database...");
 
         // Load from IndexedDB first (offline support)
-        if (offlineDB) {
+        if (offlineDB && offlineDB.db && typeof offlineDB.getAll === 'function') {
             try {
                 DB.products = (await offlineDB.getAll("products")) || [];
                 DB.variants = (await offlineDB.getAll("variants")) || [];
@@ -146,7 +150,8 @@ async function loadDB() {
                 });
             } catch (idbError) {
                 console.error("IndexedDB load error:", idbError);
-                // Initialize with empty arrays if IndexedDB fails
+                // Initialize with empty arrays if IndexedDB fails - app will work with Supabase only
+                console.log("⚠️ Continuing without IndexedDB - will use Supabase only");
                 DB = {
                     products: [],
                     variants: [],
