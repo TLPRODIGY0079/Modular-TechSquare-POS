@@ -400,8 +400,213 @@ function manageVariants(productId) {
         return;
     }
 
-    // This would open a variants management modal
-    toast("Variant management coming soon", "info");
+    const DB = getDB();
+    const product = DB.products.find(p => p.id === productId);
+    const variants = DB.variants.filter(v => v.product_id === productId);
+
+    if (!product) {
+        toast("Product not found", "error");
+        return;
+    }
+
+    openModal(
+        `Manage Variants - ${product.name}`,
+        `
+            <div class="variants-list">
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <h4>Current Variants (${variants.length})</h4>
+                    <button class="btn btn-sm btn-primary" id="addVariantBtn">
+                        <i class="fas fa-plus"></i> Add Variant
+                    </button>
+                </div>
+                ${variants.length === 0 ? `
+                    <div class="empty-state">
+                        <i class="fas fa-cubes"></i>
+                        <p>No variants yet. Add your first variant!</p>
+                    </div>
+                ` : `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Color</th>
+                                <th>Storage</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${variants.map(variant => `
+                                <tr>
+                                    <td>${esc(variant.sku)}</td>
+                                    <td>${esc(variant.color || '-')}</td>
+                                    <td>${esc(variant.storage || '-')}</td>
+                                    <td>${money(variant.price)}</td>
+                                    <td>${variant.qty}</td>
+                                    <td>
+                                        <span class="badge ${variant.is_active ? 'badge-green' : 'badge-gray'}">
+                                            ${variant.is_active ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline" onclick="window.productsService.editVariant('${variant.id}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `}
+            </div>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Close</button>
+        `
+    );
+
+    const addVariantBtn = document.getElementById("addVariantBtn");
+    if (addVariantBtn) {
+        addVariantBtn.addEventListener("click", () => {
+            closeModal();
+            addVariant(productId);
+        });
+    }
+}
+
+// Add new variant
+function addVariant(productId) {
+    const DB = getDB();
+    const product = DB.products.find(p => p.id === productId);
+
+    if (!product) {
+        toast("Product not found", "error");
+        return;
+    }
+
+    openModal(
+        `Add Variant - ${product.name}`,
+        `
+            <form id="variantForm">
+                <div class="form-group">
+                    <label>Product</label>
+                    <input type="text" class="form-input" value="${esc(product.name)}" disabled>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SKU *</label>
+                        <input type="text" class="form-input" id="variantSku" placeholder="e.g. IP15-PRO-BLK-256" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Color</label>
+                        <input type="text" class="form-input" id="variantColor" placeholder="e.g. Black">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Storage</label>
+                        <input type="text" class="form-input" id="variantStorage" placeholder="e.g. 256GB">
+                    </div>
+                    <div class="form-group">
+                        <label>Cost Price</label>
+                        <input type="number" class="form-input" id="variantCostPrice" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Selling Price *</label>
+                        <input type="number" class="form-input" id="variantPrice" step="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Stock Quantity *</label>
+                        <input type="number" class="form-input" id="variantQty" min="0" value="0" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="variantActive" checked>
+                        Active
+                    </label>
+                </div>
+            </form>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="saveVariantBtn">
+                <i class="fas fa-save"></i> Create Variant
+            </button>
+        `
+    );
+
+    const saveBtn = document.getElementById("saveVariantBtn");
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => saveNewVariant(productId));
+    }
+}
+
+// Save new variant
+async function saveNewVariant(productId) {
+    const DB = getDB();
+    const sb = getSupabase();
+
+    const sku = document.getElementById("variantSku").value.trim();
+    const color = document.getElementById("variantColor").value.trim();
+    const storage = document.getElementById("variantStorage").value.trim();
+    const costPrice = parseFloat(document.getElementById("variantCostPrice").value) || 0;
+    const price = parseFloat(document.getElementById("variantPrice").value) || 0;
+    const qty = parseInt(document.getElementById("variantQty").value) || 0;
+    const isActive = document.getElementById("variantActive").checked;
+
+    if (!sku) {
+        toast("SKU is required", "error");
+        return;
+    }
+
+    if (price <= 0) {
+        toast("Selling price must be greater than 0", "error");
+        return;
+    }
+
+    try {
+        const variantData = {
+            id: uid(),
+            product_id: productId,
+            sku,
+            color,
+            storage,
+            cost_price: costPrice,
+            price,
+            qty,
+            is_active: isActive,
+            created_at: now(),
+            updated_at: now()
+        };
+
+        // Insert new variant
+        if (sb) {
+            const { error } = await sb.from("variants").insert([variantData]);
+            if (error) throw error;
+        }
+
+        DB.variants.push(variantData);
+        toast("Variant created successfully", "success");
+        closeModal();
+
+        // Refresh the current view
+        const activeTab = document.querySelector(".tab.active")?.dataset.tab;
+        if (activeTab === "variants") {
+            renderVariants();
+        } else if (activeTab === "low-stock") {
+            renderLowStockTable();
+        } else {
+            renderProdTable();
+        }
+    } catch (error) {
+        console.error("Error creating variant:", error);
+        toast("Failed to create variant", "error");
+    }
 }
 
 // Edit variant
@@ -414,8 +619,138 @@ function editVariant(variantId) {
         return;
     }
 
-    // This would open a variant edit modal
-    toast("Variant editing coming soon", "info");
+    const DB = getDB();
+    const variant = DB.variants.find(v => v.id === variantId);
+    const product = DB.products.find(p => p.id === variant.product_id);
+
+    if (!variant) {
+        toast("Variant not found", "error");
+        return;
+    }
+
+    openModal(
+        `Edit Variant - ${product?.name || 'Unknown'}`,
+        `
+            <form id="variantForm">
+                <div class="form-group">
+                    <label>Product</label>
+                    <input type="text" class="form-input" value="${esc(product?.name || 'Unknown')}" disabled>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SKU *</label>
+                        <input type="text" class="form-input" id="variantSku" value="${esc(variant.sku || '')}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Color</label>
+                        <input type="text" class="form-input" id="variantColor" value="${esc(variant.color || '')}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Storage</label>
+                        <input type="text" class="form-input" id="variantStorage" value="${esc(variant.storage || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label>Cost Price</label>
+                        <input type="number" class="form-input" id="variantCostPrice" value="${variant.cost_price || ''}" step="0.01">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Selling Price *</label>
+                        <input type="number" class="form-input" id="variantPrice" value="${variant.price || ''}" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Stock Quantity *</label>
+                        <input type="number" class="form-input" id="variantQty" value="${variant.qty || 0}" min="0" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="variantActive" ${variant.is_active ? 'checked' : ''}>
+                        Active
+                    </label>
+                </div>
+            </form>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="saveVariantBtn">
+                <i class="fas fa-save"></i> Update Variant
+            </button>
+        `
+    );
+
+    const saveBtn = document.getElementById("saveVariantBtn");
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => saveVariant(variantId));
+    }
+}
+
+// Save variant
+async function saveVariant(variantId) {
+    const DB = getDB();
+    const sb = getSupabase();
+    const user = getCurrentUser();
+
+    const sku = document.getElementById("variantSku").value.trim();
+    const color = document.getElementById("variantColor").value.trim();
+    const storage = document.getElementById("variantStorage").value.trim();
+    const costPrice = parseFloat(document.getElementById("variantCostPrice").value) || 0;
+    const price = parseFloat(document.getElementById("variantPrice").value) || 0;
+    const qty = parseInt(document.getElementById("variantQty").value) || 0;
+    const isActive = document.getElementById("variantActive").checked;
+
+    if (!sku) {
+        toast("SKU is required", "error");
+        return;
+    }
+
+    if (price <= 0) {
+        toast("Selling price must be greater than 0", "error");
+        return;
+    }
+
+    try {
+        const variantData = {
+            sku,
+            color,
+            storage,
+            cost_price: costPrice,
+            price,
+            qty,
+            is_active: isActive,
+            updated_at: now()
+        };
+
+        // Update existing variant
+        if (sb) {
+            const { error } = await sb.from("variants").update(variantData).eq("id", variantId);
+            if (error) throw error;
+        }
+
+        const index = DB.variants.findIndex(v => v.id === variantId);
+        if (index !== -1) {
+            DB.variants[index] = { ...DB.variants[index], ...variantData };
+        }
+
+        toast("Variant updated successfully", "success");
+        closeModal();
+
+        // Refresh the current view
+        const activeTab = document.querySelector(".tab.active")?.dataset.tab;
+        if (activeTab === "variants") {
+            renderVariants();
+        } else if (activeTab === "low-stock") {
+            renderLowStockTable();
+        } else {
+            renderProdTable();
+        }
+    } catch (error) {
+        console.error("Error saving variant:", error);
+        toast("Failed to update variant", "error");
+    }
 }
 
 // Export service functions for global access
@@ -423,7 +758,10 @@ window.productsService = {
     renderProducts,
     editProduct,
     manageVariants,
-    editVariant
+    editVariant,
+    addVariant,
+    saveVariant,
+    saveNewVariant
 };
 
 export default {
@@ -434,5 +772,8 @@ export default {
     openProductModal,
     editProduct,
     manageVariants,
-    editVariant
+    editVariant,
+    addVariant,
+    saveVariant,
+    saveNewVariant
 };
