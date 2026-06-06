@@ -79,8 +79,23 @@ export function renderTradeIn() {
                                     <i class="fas fa-cube"></i> NEW DEVICE
                                 </div>
                                 <div class="form-group">
-                                    <label>New Device Sale Value (K) *</label>
-                                    <input type="number" class="form-input" id="tradeInSaleValue" required min="0" step="0.01" placeholder="e.g. 12000.00">
+                                    <label>Select Product *</label>
+                                    <select class="form-input" id="tradeInProductId" required>
+                                        <option value="">Select Product...</option>
+                                        ${DB.products.filter(p => p.active !== false).map(p =>
+                                            `<option value="${p.id}">${p.name}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Select Variant *</label>
+                                    <select class="form-input" id="tradeInVariantId" required>
+                                        <option value="">Select Variant...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Potential Sale Value</label>
+                                    <div id="tradeInSaleValue" style="font-weight:700;color:var(--gn)">K0.00</div>
                                 </div>
                             </div>
 
@@ -131,8 +146,8 @@ export function renderTradeIn() {
                                                     <div style="font-size:12px;color:var(--tx2)">${t.serial_number || '-'}</div>
                                                 </td>
                                                 <td>
-                                                    <strong>New Device</strong>
-                                                    <div style="font-size:12px;color:var(--tx2)">Sale Value: ${money(t.sale_value)}</div>
+                                                    <strong>${t.new_device_name || 'New Device'}</strong>
+                                                    <div style="font-size:12px;color:var(--tx2)">${t.new_device_variant || ''}</div>
                                                 </td>
                                                 <td style="font-weight:700;color:var(--gn)">${money(t.sale_value - t.trade_in_value)}</td>
                                                 <td>
@@ -160,19 +175,49 @@ export function renderTradeIn() {
         form.addEventListener("submit", processTradeInForm);
     }
 
+    // Setup product change event
+    const productIdSelect = document.getElementById("tradeInProductId");
+    if (productIdSelect) {
+        productIdSelect.addEventListener("change", updateTradeInVariants);
+    }
+
+    // Setup variant change event
+    const variantIdSelect = document.getElementById("tradeInVariantId");
+    if (variantIdSelect) {
+        variantIdSelect.addEventListener("change", updateTradeInNet);
+    }
+
     // Setup input change events for net calculation
     const tradeInValue = document.getElementById("tradeInValue");
-    const saleValue = document.getElementById("tradeInSaleValue");
-
     if (tradeInValue) {
         tradeInValue.addEventListener("input", window.updateTradeInNet);
     }
-    if (saleValue) {
-        saleValue.addEventListener("input", window.updateTradeInNet);
+
+    // Initialize variants dropdown
+    updateTradeInVariants();
+}
+
+// Update trade-in variants based on selected product
+function updateTradeInVariants() {
+    const DB = getDB();
+    const productId = document.getElementById("tradeInProductId")?.value;
+    const variantSelect = document.getElementById("tradeInVariantId");
+
+    if (!variantSelect) return;
+
+    if (!productId) {
+        variantSelect.innerHTML = '<option value="">Select Variant...</option>';
+        return;
     }
 
-    // Initial net calculation
-    window.updateTradeInNet();
+    const variants = DB.variants.filter(v => v.product_id === productId && v.active !== false);
+    variantSelect.innerHTML = variants.length > 0
+        ? variants.map(v => `<option value="${v.id}" data-price="${v.price || 0}" data-name="${v.product_name || ''}">
+            ${v.color || ''} ${v.storage || ''} - ${money(v.price || 0)}
+           </option>`).join('')
+        : '<option value="">No variants available</option>';
+
+    updateTradeInNet();
 }
 
 // Update trade-in net payment calculation
@@ -190,10 +235,18 @@ window.updateTradeInNet = function() {
 // Update net payment calculation
 window.updateTradeInNet = function() {
     const tradeInValue = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
-    const saleValue = parseFloat(document.getElementById("tradeInSaleValue")?.value) || 0;
+    const variantSelect = document.getElementById("tradeInVariantId");
+    const saleValueElement = document.getElementById("tradeInSaleValue");
+    const netPaymentElement = document.getElementById("tradeInNetPayment");
+
+    let saleValue = 0;
+    if (variantSelect && variantSelect.selectedOptions[0]) {
+        saleValue = parseFloat(variantSelect.selectedOptions[0].dataset.price) || 0;
+    }
+
     const netPayment = saleValue - tradeInValue;
 
-    const netPaymentElement = document.getElementById("tradeInNetPayment");
+    if (saleValueElement) saleValueElement.textContent = money(saleValue);
     if (netPaymentElement) {
         netPaymentElement.textContent = money(netPayment);
         netPaymentElement.style.color = netPayment >= 0 ? 'var(--gn)' : 'var(--dn)';
@@ -213,10 +266,14 @@ async function processTradeInForm(e) {
     const serial_number = document.getElementById("tradeInSerialNumber")?.value.trim();
     const condition = document.getElementById("tradeInCondition")?.value;
     const trade_in_value = parseFloat(document.getElementById("tradeInValue")?.value) || 0;
-    const sale_value = parseFloat(document.getElementById("tradeInSaleValue")?.value) || 0;
+    const variant_id = document.getElementById("tradeInVariantId")?.value;
     const customer_name = document.getElementById("tradeInCustomerName")?.value.trim() || "Walk-in Customer";
 
-    if (!storeId || !item_name || !serial_number || !condition || !trade_in_value || !sale_value) {
+    const variant = variant_id ? DB.variants.find(v => v.id === variant_id) : null;
+    const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
+    const sale_value = variant ? (variant.price || 0) : 0;
+
+    if (!storeId || !item_name || !serial_number || !condition || !trade_in_value || !variant_id) {
         toast("Please fill in all required fields", "error");
         return;
     }
@@ -232,6 +289,8 @@ async function processTradeInForm(e) {
             item_description: `${item_name} - ${condition}`,
             serial_number: serial_number,
             condition: condition,
+            new_device_name: product ? product.name : '',
+            new_device_variant: variant ? `${variant.color || ''} ${variant.storage || ''}`.trim() : '',
             trade_in_value: trade_in_value,
             sale_value: sale_value,
             status: "pending",
@@ -239,6 +298,10 @@ async function processTradeInForm(e) {
             created_at: now(),
             updated_at: now()
         };
+
+        // Store variant_id locally for later inventory deduction (not saved to DB to avoid schema issues)
+        tradeInData._variant_id = variant_id;
+        tradeInData._variant = variant;
         
         // Save to Supabase
         if (sb) {
@@ -551,7 +614,7 @@ async function completeTradeIn(tradeInId) {
     const sb = getSupabase();
     const user = getCurrentUser();
 
-    showConfirm("Mark this trade-in as completed? This will add the traded-in item to warehouse inventory.", async () => {
+    showConfirm("Mark this trade-in as completed? This will add the traded-in item to warehouse inventory and deduct the new device from stock.", async () => {
         try {
             const tradeIn = DB.tradeIns.find(t => t.id === tradeInId);
             if (!tradeIn) {
@@ -605,13 +668,41 @@ async function completeTradeIn(tradeInId) {
 
                 // Save to local DB
                 DB.serializedItems.push(serializedItemData);
-
-                toast("Trade-in completed and item added to warehouse", "success");
             } catch (warehouseError) {
                 console.warn("Error adding to warehouse (trade-in still completed):", warehouseError);
-                toast("Trade-in completed (warehouse addition failed)", "warning");
             }
 
+            // Deduct inventory of the new device given to customer
+            if (tradeIn._variant) {
+                try {
+                    const variant = tradeIn._variant;
+                    const newQty = Math.max(0, (variant.qty || 0) - 1);
+
+                    const variantUpdate = {
+                        qty: newQty,
+                        updated_at: now()
+                    };
+
+                    if (sb) {
+                        const { error: vErr } = await sb
+                            .from("variants")
+                            .update(variantUpdate)
+                            .eq("id", variant.id);
+                        if (vErr)
+                            console.error("Trade-in variant deduction error:", vErr);
+                    }
+
+                    // Update in-memory
+                    const vIdx = DB.variants.findIndex((x) => x.id === variant.id);
+                    if (vIdx !== -1) {
+                        DB.variants[vIdx].qty = newQty;
+                    }
+                } catch (inventoryError) {
+                    console.warn("Error deducting inventory (trade-in still completed):", inventoryError);
+                }
+            }
+
+            toast("Trade-in completed: Traded-in item added to warehouse, new device stock deducted", "success");
             renderTradeInTable('completed');
         } catch (error) {
             console.error("Error completing trade-in:", error);
@@ -688,6 +779,7 @@ function viewTradeInDetails(tradeInId) {
 // Export service functions for global access
 const tradeInService = {
     renderTradeIn,
+    updateTradeInVariants,
     updateTradeInNet,
     processTradeInForm
 };

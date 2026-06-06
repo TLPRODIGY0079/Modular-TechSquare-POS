@@ -296,33 +296,441 @@ export async function confirmAgentTransaction(
  * Render the agents page
  */
 export async function renderAgents() {
-    // Import renderTopbarActions dynamically to avoid circular dependency
-    const { renderTopbarActions } = await import('../app.js');
+    const DB = getDB();
+    const currentUser = getCurrentUser();
+    const sb = getSupabase();
+    const mainContent = $("mainContent");
 
-    renderTopbarActions(
-        `<button class="btn btn-primary btn-sm" id="newAgentBtn"><i class="fas fa-plus"></i> New Agent</button>`,
-    );
+    if (!mainContent) return;
 
-    $("mainContent").innerHTML = `<div class="fade-in">
-    <div style="text-align: center; padding: 60px; color: var(--tx2)">
-      <i class="fas fa-user-tie" style="font-size: 48px; margin-bottom: 16px"></i>
-      <h3>Agent System</h3>
-      <p>Agent management system is being configured.</p>
-      <p style="margin-top: 16px; font-size: 13px; color: var(--tx3)">
-        This feature will be available once the agent system is fully set up.
-      </p>
-    </div>
-  </div>`;
+    try {
+        // Load agents from database
+        let agents = [];
+        try {
+            if (sb) {
+                const { data, error } = await sb.from("agents").select("*").order("created_at", { ascending: false });
+                if (error) throw error;
+                agents = data || [];
+            }
+        } catch (err) {
+            console.error("Error loading agents from Supabase:", err);
+            // Fallback to local data if available
+            agents = DB.agents || [];
+        }
 
-    // Simple event listener for new agent button
-    setTimeout(() => {
-        const newBtn = $("newAgentBtn");
-        if (newBtn) {
-            newBtn.addEventListener("click", () => {
-                toast("Agent system is being configured", "info");
+        // Calculate statistics
+        const totalAgents = agents.length;
+        const activeAgents = agents.filter(a => a.active !== false).length;
+        const totalBalance = agents.reduce((sum, a) => sum + (a.balance || 0), 0);
+
+        mainContent.innerHTML = `
+            <div class="warehouse-container">
+                <div class="warehouse-header">
+                    <div>
+                        <h1><i class="fas fa-user-tie"></i> Agent Management</h1>
+                        <p style="color:var(--tx2);margin-top:8px">Manage consignment agents and resellers</p>
+                    </div>
+                    <div style="display:flex;gap:12px">
+                        <button class="btn btn-outline" onclick="window.agentsService.openNewAgentModal()">
+                            <i class="fas fa-plus-circle"></i> New Agent
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background:var(--ac3);color:var(--ac)">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">${totalAgents}</div>
+                            <div class="stat-label">Total Agents</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background:var(--gn2);color:var(--gn)">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">${activeAgents}</div>
+                            <div class="stat-label">Active Agents</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background:var(--wn2);color:var(--wn)">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">${money(totalBalance)}</div>
+                            <div class="stat-label">Total Balance</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agents List -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Registered Agents</h3>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="text" class="form-input" id="agentSearch" placeholder="Search agents..." style="width:200px;padding:8px 12px">
+                        </div>
+                    </div>
+                    <div class="card-body np">
+                        ${agents.length === 0 ? `
+                            <div class="empty-state">
+                                <i class="fas fa-user-tie"></i>
+                                <h3>No agents registered</h3>
+                                <p>Get started by adding your first agent</p>
+                            </div>
+                        ` : `
+                            <div class="agents-grid">
+                                ${agents.map(agent => `
+                                    <div class="agent-card">
+                                        <div style="display:flex;justify-content:space-between;align-items:start">
+                                            <div>
+                                                <div style="font-weight:600;font-size:16px">${esc(agent.name)}</div>
+                                                <div style="font-size:12px;color:var(--tx2);margin-top:4px">${esc(agent.phone || 'No phone')}</div>
+                                            </div>
+                                            <span class="badge ${agent.active !== false ? 'badge-green' : 'badge-gray'}">
+                                                ${agent.active !== false ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </div>
+                                        <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                                            <div style="background:var(--bg);padding:8px;border-radius:6px">
+                                                <div style="font-size:11px;color:var(--tx2)">Balance</div>
+                                                <div style="font-weight:600;font-size:14px;color:${(agent.balance || 0) > 0 ? 'var(--wn)' : 'var(--gn)'}">
+                                                    ${money(Math.abs(agent.balance || 0))}
+                                                </div>
+                                            </div>
+                                            <div style="background:var(--bg);padding:8px;border-radius:6px">
+                                                <div style="font-size:11px;color:var(--tx2)">Credit Limit</div>
+                                                <div style="font-weight:600;font-size:14px">
+                                                    ${agent.credit_limit ? money(agent.credit_limit) : 'Not set'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style="margin-top:12px;display:flex;gap:8px">
+                                            <button class="btn btn-sm btn-outline" onclick="window.agentsService.viewAgentDetails('${agent.id}')">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                            <button class="btn btn-sm btn-outline" onclick="window.agentsService.editAgent('${agent.id}')">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Setup search functionality
+        const searchInput = document.getElementById("agentSearch");
+        if (searchInput) {
+            searchInput.addEventListener("input", (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const cards = document.querySelectorAll(".agent-card");
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(searchTerm) ? "block" : "none";
+                });
             });
         }
-    }, 100);
+
+    } catch (error) {
+        console.error("Error rendering agents:", error);
+        mainContent.innerHTML = `
+            <div style="padding:40px;text-align:center">
+                <i class="fas fa-exclamation-triangle" style="font-size:48px;color:var(--dn);margin-bottom:20px"></i>
+                <h2>Error Loading Agents</h2>
+                <p style="color:var(--tx2);margin-top:10px">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Open new agent modal
+ */
+function openNewAgentModal() {
+    const currentUser = getCurrentUser();
+
+    openModal(
+        "Add New Agent",
+        `
+            <form id="agentForm">
+                <div class="form-group">
+                    <label>Agent Name *</label>
+                    <input type="text" class="form-input" id="agentName" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" class="form-input" id="agentPhone">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" class="form-input" id="agentEmail">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Credit Limit</label>
+                        <input type="number" class="form-input" id="agentCreditLimit" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Commission Rate (%)</label>
+                        <input type="number" class="form-input" id="agentCommissionRate" step="0.1" min="0" max="100" placeholder="0.0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Store</label>
+                    <select class="form-input" id="agentStore" required>
+                        ${currentUser.role === "admin" ?
+                            `<option value="">Select Store</option>
+                            <option value="${STORE1_ID}">Store 1</option>
+                            <option value="${STORE2_ID}">Store 2</option>` :
+                            `<option value="${currentUser.storeId}">${currentUser.storeId === STORE1_ID ? "Store 1" : "Store 2"}</option>`
+                        }
+                    </select>
+                </div>
+            </form>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="saveAgentBtn">
+                <i class="fas fa-save"></i> Create Agent
+            </button>
+        `
+    );
+
+    const saveBtn = document.getElementById("saveAgentBtn");
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => saveAgent());
+    }
+}
+
+/**
+ * Save new agent
+ */
+async function saveAgent() {
+    const DB = getDB();
+    const sb = getSupabase();
+    const currentUser = getCurrentUser();
+
+    const name = document.getElementById("agentName").value.trim();
+    const phone = document.getElementById("agentPhone").value.trim();
+    const email = document.getElementById("agentEmail").value.trim();
+    const creditLimit = parseFloat(document.getElementById("agentCreditLimit").value) || null;
+    const commissionRate = parseFloat(document.getElementById("agentCommissionRate").value) || null;
+    const storeId = document.getElementById("agentStore").value;
+
+    if (!name || !storeId) {
+        toast("Agent name and store are required", "error");
+        return;
+    }
+
+    try {
+        const agentData = {
+            id: uid(),
+            name,
+            phone,
+            email,
+            store_id: storeId,
+            credit_limit: creditLimit,
+            balance: 0,
+            commission_rate: commissionRate,
+            active: true,
+            created_at: now(),
+            updated_at: now()
+        };
+
+        // Save to Supabase
+        if (sb) {
+            const { error } = await sb.from("agents").insert([agentData]);
+            if (error) throw error;
+        }
+
+        // Save to local DB
+        if (!DB.agents) DB.agents = [];
+        DB.agents.unshift(agentData);
+
+        toast("Agent created successfully", "success");
+        closeModal();
+        renderAgents();
+    } catch (error) {
+        console.error("Error creating agent:", error);
+        toast("Failed to create agent", "error");
+    }
+}
+
+/**
+ * View agent details
+ */
+function viewAgentDetails(agentId) {
+    const DB = getDB();
+    const agent = DB.agents?.find(a => a.id === agentId);
+
+    if (!agent) {
+        toast("Agent not found", "error");
+        return;
+    }
+
+    openModal(
+        "Agent Details",
+        `
+            <div class="agent-details">
+                <div style="background:var(--bg);padding:16px;border-radius:8px;margin-bottom:16px">
+                    <div style="font-weight:700;font-size:18px">${esc(agent.name)}</div>
+                    <div style="font-size:13px;color:var(--tx2);margin-top:4px">${esc(agent.phone || 'No phone')}</div>
+                    ${agent.email ? `<div style="font-size:13px;color:var(--tx2)">${esc(agent.email)}</div>` : ''}
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                    <div style="background:var(--bg);padding:12px;border-radius:8px">
+                        <div style="font-size:11px;color:var(--tx2);margin-bottom:4px">Current Balance</div>
+                        <div style="font-weight:700;font-size:20px;color:${(agent.balance || 0) > 0 ? 'var(--wn)' : 'var(--gn)'}">
+                            ${money(Math.abs(agent.balance || 0))}
+                        </div>
+                    </div>
+                    <div style="background:var(--bg);padding:12px;border-radius:8px">
+                        <div style="font-size:11px;color:var(--tx2);margin-bottom:4px">Credit Limit</div>
+                        <div style="font-weight:700;font-size:20px">
+                            ${agent.credit_limit ? money(agent.credit_limit) : 'Not set'}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:var(--ac3);padding:12px;border-radius:8px">
+                    <div style="font-size:11px;color:var(--tx2);margin-bottom:4px">Status</div>
+                    <span class="badge ${agent.active !== false ? 'badge-green' : 'badge-gray'}">
+                        ${agent.active !== false ? 'Active' : 'Inactive'}
+                    </span>
+                </div>
+            </div>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Close</button>
+        `
+    );
+}
+
+/**
+ * Edit agent
+ */
+function editAgent(agentId) {
+    const DB = getDB();
+    const currentUser = getCurrentUser();
+    const agent = DB.agents?.find(a => a.id === agentId);
+
+    if (!agent) {
+        toast("Agent not found", "error");
+        return;
+    }
+
+    openModal(
+        "Edit Agent",
+        `
+            <form id="agentForm">
+                <div class="form-group">
+                    <label>Agent Name *</label>
+                    <input type="text" class="form-input" id="agentName" value="${esc(agent.name)}" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" class="form-input" id="agentPhone" value="${esc(agent.phone || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" class="form-input" id="agentEmail" value="${esc(agent.email || '')}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Credit Limit</label>
+                        <input type="number" class="form-input" id="agentCreditLimit" value="${agent.credit_limit || ''}" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Commission Rate (%)</label>
+                        <input type="number" class="form-input" id="agentCommissionRate" value="${agent.commission_rate || ''}" step="0.1" min="0" max="100">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select class="form-input" id="agentActive">
+                        <option value="true" ${agent.active !== false ? 'selected' : ''}>Active</option>
+                        <option value="false" ${agent.active === false ? 'selected' : ''}>Inactive</option>
+                    </select>
+                </div>
+            </form>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="updateAgentBtn">
+                <i class="fas fa-save"></i> Update Agent
+            </button>
+        `
+    );
+
+    const updateBtn = document.getElementById("updateAgentBtn");
+    if (updateBtn) {
+        updateBtn.addEventListener("click", () => updateAgent(agentId));
+    }
+}
+
+/**
+ * Update agent
+ */
+async function updateAgent(agentId) {
+    const DB = getDB();
+    const sb = getSupabase();
+
+    const name = document.getElementById("agentName").value.trim();
+    const phone = document.getElementById("agentPhone").value.trim();
+    const email = document.getElementById("agentEmail").value.trim();
+    const creditLimit = parseFloat(document.getElementById("agentCreditLimit").value) || null;
+    const commissionRate = parseFloat(document.getElementById("agentCommissionRate").value) || null;
+    const active = document.getElementById("agentActive").value === "true";
+
+    if (!name) {
+        toast("Agent name is required", "error");
+        return;
+    }
+
+    try {
+        const updates = {
+            name,
+            phone,
+            email,
+            credit_limit: creditLimit,
+            commission_rate: commissionRate,
+            active,
+            updated_at: now()
+        };
+
+        // Update in Supabase
+        if (sb) {
+            const { error } = await sb.from("agents").update(updates).eq("id", agentId);
+            if (error) throw error;
+        }
+
+        // Update in local DB
+        const index = DB.agents?.findIndex(a => a.id === agentId);
+        if (index !== -1) {
+            DB.agents[index] = { ...DB.agents[index], ...updates };
+        }
+
+        toast("Agent updated successfully", "success");
+        closeModal();
+        renderAgents();
+    } catch (error) {
+        console.error("Error updating agent:", error);
+        toast("Failed to update agent", "error");
+    }
 }
 
 /**
@@ -333,7 +741,6 @@ export async function renderAgentsGrid(agents) {
     const grid = $("agentsGrid");
     if (!grid) return;
 
-    // Agent system temporarily disabled
     grid.innerHTML = `
     <div style="text-align:center;padding:40px;color:var(--tx2)">
       <i class="fas fa-user-tie" style="font-size:48px;margin-bottom:16px;opacity:0.3"></i>
@@ -341,28 +748,6 @@ export async function renderAgentsGrid(agents) {
       <p>The agent consignment system is being updated. Please check back later.</p>
     </div>
   `;
-}
-
-/**
- * Open new agent modal
- */
-export function openNewAgentModal() {
-    // Agent system temporarily disabled
-    toast("Agent system temporarily unavailable", "info");
-}
-
-/**
- * Create a new agent
- */
-export async function createAgent() {
-    try {
-        // Agent system temporarily disabled
-        toast("Agent system temporarily unavailable", "info");
-        closeModal();
-    } catch (error) {
-        console.error("Create agent error:", error);
-        toast("Error: " + error.message, "error");
-    }
 }
 
 // ============================================================================
@@ -466,7 +851,11 @@ const agentsService = {
     renderAgentsGrid,
     openNewAgentModal,
     createAgent,
-    loadAgentMetrics
+    loadAgentMetrics,
+    saveAgent,
+    viewAgentDetails,
+    editAgent,
+    updateAgent
 };
 
 // Make functions available globally for onclick handlers
