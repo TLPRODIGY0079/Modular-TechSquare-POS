@@ -549,9 +549,16 @@ async function rejectTradeIn(tradeInId) {
 async function completeTradeIn(tradeInId) {
     const DB = getDB();
     const sb = getSupabase();
-    
-    showConfirm("Mark this trade-in as completed?", async () => {
+    const user = getCurrentUser();
+
+    showConfirm("Mark this trade-in as completed? This will add the traded-in item to warehouse inventory.", async () => {
         try {
+            const tradeIn = DB.tradeIns.find(t => t.id === tradeInId);
+            if (!tradeIn) {
+                toast("Trade-in not found", "error");
+                return;
+            }
+
             const updates = {
                 status: 'completed',
                 updated_at: now()
@@ -567,7 +574,44 @@ async function completeTradeIn(tradeInId) {
                 DB.tradeIns[index] = { ...DB.tradeIns[index], ...updates };
             }
 
-            toast("Trade-in completed", "success");
+            // Add traded-in item to warehouse as serialized item
+            try {
+                const serializedItemData = {
+                    id: uid(),
+                    sku: `TRADEIN-${tradeIn.serial_number || tradeIn.id}`,
+                    variant_id: null,
+                    product_name: tradeIn.item_name,
+                    serial_number: tradeIn.serial_number || tradeIn.id,
+                    condition: tradeIn.condition,
+                    status: 'trade_in',
+                    location: 'warehouse',
+                    trade_in_id: tradeIn.id,
+                    is_active: true,
+                    cost_price: tradeIn.trade_in_value,
+                    selling_price: tradeIn.sale_value,
+                    notes: `Traded-in from ${tradeIn.customer_name}. ${tradeIn.item_description}`,
+                    created_at: now(),
+                    updated_at: now()
+                };
+
+                // Save to Supabase
+                if (sb) {
+                    const { error: serialError } = await sb.from("serialized_items").insert([serializedItemData]);
+                    if (serialError) {
+                        console.warn("Error adding serialized item to warehouse:", serialError);
+                        // Don't throw error - trade-in is still completed
+                    }
+                }
+
+                // Save to local DB
+                DB.serializedItems.push(serializedItemData);
+
+                toast("Trade-in completed and item added to warehouse", "success");
+            } catch (warehouseError) {
+                console.warn("Error adding to warehouse (trade-in still completed):", warehouseError);
+                toast("Trade-in completed (warehouse addition failed)", "warning");
+            }
+
             renderTradeInTable('completed');
         } catch (error) {
             console.error("Error completing trade-in:", error);

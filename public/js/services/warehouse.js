@@ -442,6 +442,7 @@ function renderInventoryTab() {
     const DB = getDB();
     const products = DB.products.filter((p) => p.active !== false);
     const variants = DB.variants.filter((v) => v.active !== false);
+    const tradedInItems = DB.serializedItems?.filter(s => s.status === 'trade_in' && s.is_active !== false) || [];
 
     // Group variants by product
     const productMap = {};
@@ -518,6 +519,49 @@ function renderInventoryTab() {
         </div>
       </div>
     </div>
+
+    ${tradedInItems.length > 0 ? `
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-header">
+        <h3><i class="fas fa-rotate" style="margin-right: 8px; color: var(--ac);"></i> Traded-In Items</h3>
+      </div>
+      <div class="card-body np">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Serial Number</th>
+                <th>Condition</th>
+                <th style="text-align:right">Trade-in Value</th>
+                <th style="text-align:right">Selling Price</th>
+                <th>Status</th>
+                <th>Location</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tradedInItems.map(item => `
+                <tr style="background: var(--ac3);">
+                  <td>
+                    <strong>${esc(item.product_name || 'Unknown')}</strong>
+                    ${item.trade_in_id ? `<div style="font-size: 11px; color: var(--ac);"><i class="fas fa-rotate"></i> Trade-in Item</div>` : ''}
+                  </td>
+                  <td><code style="background:var(--bg4);padding:4px 8px;border-radius:4px;font-size:12px">${esc(item.serial_number || '-')}</code></td>
+                  <td><span class="badge badge-blue">${esc(item.condition || 'Unknown')}</span></td>
+                  <td style="text-align:right;color:var(--tx2)">K${(item.cost_price || 0).toFixed(2)}</td>
+                  <td style="text-align:right">K${(item.selling_price || 0).toFixed(2)}</td>
+                  <td><span class="badge badge-orange">${esc(item.status || 'trade_in')}</span></td>
+                  <td><span class="badge badge-gray">${esc(item.location || 'warehouse')}</span></td>
+                  <td style="font-size: 12px; color: var(--tx2); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(item.notes || '-')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    ` : ''}
   `;
 }
 
