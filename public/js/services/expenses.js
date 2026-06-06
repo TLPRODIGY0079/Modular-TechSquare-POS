@@ -245,7 +245,6 @@ async function processExpenseForm(e) {
             amount: amount,
             description: description,
             date: date,
-            receipt_number: receiptNumber || null,
             created_at: now()
         };
 

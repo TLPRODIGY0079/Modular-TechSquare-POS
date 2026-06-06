@@ -80,7 +80,7 @@ export function renderTradeIn() {
                                 </div>
                                 <div class="form-group">
                                     <label>Select Product *</label>
-                                    <select class="form-input" id="tradeInProductId" required onchange="updateTradeInVariants()">
+                                    <select class="form-input" id="tradeInProductId" required>
                                         <option value="">Select Product...</option>
                                         ${DB.products.filter(p => p.active !== false).map(p => 
                                             `<option value="${p.id}">${p.name}</option>`
@@ -175,6 +175,12 @@ export function renderTradeIn() {
     const form = document.getElementById("tradeInForm");
     if (form) {
         form.addEventListener("submit", processTradeInForm);
+    }
+
+    // Setup product change event
+    const productIdSelect = document.getElementById("tradeInProductId");
+    if (productIdSelect) {
+        productIdSelect.addEventListener("change", updateTradeInVariants);
     }
 
     // Initialize variants dropdown

@@ -873,16 +873,6 @@ const salesService = {
     exportSalesPDF
 };
 
-// Helper function to format date
-function formatDate(dateStr) {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-ZA", {
-        year: "numeric",
-        month: "short",
-        day: "numeric"
-    });
-}
 
 // Make functions available globally for onclick handlers
 if (typeof window !== 'undefined') {

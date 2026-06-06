@@ -139,9 +139,11 @@ function renderProdTable() {
 // Render low stock table
 function renderLowStockTable() {
     const DB = getDB();
+    const user = getCurrentUser();
     const container = document.getElementById("productsContainer");
     if (!container) return;
 
+    const isAdmin = user.role === "admin" || user.role === "store_manager";
     const lowStockVariants = DB.variants.filter(v => v.qty < 10 && v.is_active);
 
     if (lowStockVariants.length === 0) {
@@ -178,9 +180,11 @@ function renderLowStockTable() {
                             <td><span class="badge badge-red">${variant.qty}</span></td>
                             <td>${money(variant.price)}</td>
                             <td>
+                                ${isAdmin ? `
                                 <button class="btn btn-sm btn-outline" onclick="window.productsService.editVariant('${variant.id}')">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                ` : ''}
                             </td>
                         </tr>
                     `;
@@ -193,8 +197,11 @@ function renderLowStockTable() {
 // Render variants
 function renderVariants() {
     const DB = getDB();
+    const user = getCurrentUser();
     const container = document.getElementById("productsContainer");
     if (!container) return;
+
+    const isAdmin = user.role === "admin" || user.role === "store_manager";
 
     container.innerHTML = `
         <table>
@@ -227,9 +234,11 @@ function renderVariants() {
                                 </span>
                             </td>
                             <td>
+                                ${isAdmin ? `
                                 <button class="btn btn-sm btn-outline" onclick="window.productsService.editVariant('${variant.id}')">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                ` : ''}
                             </td>
                         </tr>
                     `;
@@ -383,12 +392,28 @@ function editProduct(productId) {
 
 // Manage variants
 function manageVariants(productId) {
+    const user = getCurrentUser();
+    const isAdmin = user.role === "admin" || user.role === "store_manager";
+
+    if (!isAdmin) {
+        toast("Access denied. Only admins can manage variants.", "error");
+        return;
+    }
+
     // This would open a variants management modal
     toast("Variant management coming soon", "info");
 }
 
 // Edit variant
 function editVariant(variantId) {
+    const user = getCurrentUser();
+    const isAdmin = user.role === "admin" || user.role === "store_manager";
+
+    if (!isAdmin) {
+        toast("Access denied. Only admins can edit variants.", "error");
+        return;
+    }
+
     // This would open a variant edit modal
     toast("Variant editing coming soon", "info");
 }
