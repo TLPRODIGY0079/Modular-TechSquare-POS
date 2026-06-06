@@ -129,15 +129,15 @@ async function loadDB() {
             try {
                 DB.products = (await offlineDB.getAll("products")) || [];
                 DB.variants = (await offlineDB.getAll("variants")) || [];
-                DB.serializedItems = (await offlineDB.getAll("serializedItems")) || [];
+                DB.serializedItems = (await offlineDB.getAll("serialized_items")) || [];
                 DB.sales = (await offlineDB.getAll("sales")) || [];
                 DB.saleItems = [];
-                DB.stockTransfers = (await offlineDB.getAll("stockTransfers")) || [];
-                DB.tradeIns = (await offlineDB.getAll("tradeIns")) || [];
+                DB.stockTransfers = (await offlineDB.getAll("stock_transfers")) || [];
+                DB.tradeIns = (await offlineDB.getAll("trade_in_transactions")) || [];
                 DB.expenses = (await offlineDB.getAll("expenses")) || [];
-                DB.laybys = (await offlineDB.getAll("laybys")) || [];
-                DB.laybyPayments = (await offlineDB.getAll("laybyPayments")) || [];
-                DB.commissionRecords = (await offlineDB.getAll("commissionRecords")) || [];
+                DB.laybys = (await offlineDB.getAll("layby_transactions")) || [];
+                DB.laybyPayments = (await offlineDB.getAll("layby_payments")) || [];
+                DB.commissionRecords = (await offlineDB.getAll("commission_records")) || [];
 
                 log("Loaded from IndexedDB:", {
                     products: DB.products.length,
@@ -230,12 +230,12 @@ async function loadDB() {
                         await Promise.all([
                             ...DB.products.map((p) => offlineDB.put("products", p)),
                             ...DB.variants.map((v) => offlineDB.put("variants", v)),
-                            ...DB.serializedItems.map((s) => offlineDB.put("serializedItems", s)),
+                            ...DB.serializedItems.map((s) => offlineDB.put("serialized_items", s)),
                             ...DB.sales.map((s) => offlineDB.put("sales", s)),
-                            ...DB.stockTransfers.map((t) => offlineDB.put("stockTransfers", t)),
-                            ...DB.tradeIns.map((t) => offlineDB.put("tradeIns", t)),
+                            ...DB.stockTransfers.map((t) => offlineDB.put("stock_transfers", t)),
+                            ...DB.tradeIns.map((t) => offlineDB.put("trade_in_transactions", t)),
                             ...DB.expenses.map((e) => offlineDB.put("expenses", e)),
-                            ...DB.commissionRecords.map((c) => offlineDB.put("commissionRecords", c)),
+                            ...DB.commissionRecords.map((c) => offlineDB.put("commission_records", c)),
                         ]);
                     } catch (cacheError) {
                         console.error("Failed to cache data in IndexedDB:", cacheError);

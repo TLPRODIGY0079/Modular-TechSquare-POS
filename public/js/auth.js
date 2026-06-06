@@ -169,6 +169,22 @@ function hasAccess(page) {
             roles: ["admin", "store_manager"],
         },
         {
+            id: "transfers",
+            roles: ["admin", "store_manager"],
+        },
+        {
+            id: "tradein",
+            roles: ["admin", "store_manager", "cashier"],
+        },
+        {
+            id: "expenses",
+            roles: ["admin", "store_manager"],
+        },
+        {
+            id: "history",
+            roles: ["admin", "store_manager", "cashier"],
+        },
+        {
             id: "reports",
             roles: ["admin", "store_manager"],
         },
