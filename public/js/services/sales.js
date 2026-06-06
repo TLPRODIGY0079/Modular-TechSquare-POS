@@ -611,7 +611,7 @@ function viewReceipt(receiptNo) {
 }
 
 // Export service functions for global access
-window.salesService = {
+const salesService = {
     renderSales,
     addToCart,
     removeFromCart,
@@ -623,14 +623,9 @@ window.salesService = {
     viewReceipt
 };
 
-export default {
-    renderSales,
-    addToCart,
-    removeFromCart,
-    incrementQuantity,
-    decrementQuantity,
-    completeSale,
-    printReceipt,
-    renderHistory,
-    viewReceipt
-};
+// Make functions available globally for onclick handlers
+if (typeof window !== 'undefined') {
+    window.salesService = salesService;
+}
+
+export default salesService;

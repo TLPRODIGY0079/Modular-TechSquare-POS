@@ -271,15 +271,15 @@ async function deleteExpense(expenseId) {
 }
 
 // Export service functions for global access
-window.expensesService = {
+const expensesService = {
     renderExpenses,
     editExpense,
     deleteExpense
 };
 
-export default {
-    renderExpenses,
-    saveExpense,
-    editExpense,
-    deleteExpense
-};
+// Make functions available globally for onclick handlers
+if (typeof window !== 'undefined') {
+    window.expensesService = expensesService;
+}
+
+export default expensesService;

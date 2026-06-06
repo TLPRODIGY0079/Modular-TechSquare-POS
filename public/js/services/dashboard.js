@@ -374,14 +374,15 @@ function exportSalesReport() {
 }
 
 // Export service functions for global access
-window.dashboardService = {
+const dashboardService = {
     renderDashboard,
     renderReports,
     exportSalesReport
 };
 
-export default {
-    renderDashboard,
-    renderReports,
-    exportSalesReport
-};
+// Make functions available globally for onclick handlers
+if (typeof window !== 'undefined') {
+    window.dashboardService = dashboardService;
+}
+
+export default dashboardService;

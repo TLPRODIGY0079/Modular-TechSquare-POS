@@ -455,3 +455,23 @@ function isOnline() {
 function log(message) {
     console.log(`[AgentService] ${message}`);
 }
+
+// Export service functions for global access
+const agentsService = {
+    renderAgents,
+    calculateCommission,
+    handleAgentPaymentMethod,
+    showAgentTransactionForm,
+    confirmAgentTransaction,
+    renderAgentsGrid,
+    openNewAgentModal,
+    createAgent,
+    loadAgentMetrics
+};
+
+// Make functions available globally for onclick handlers
+if (typeof window !== 'undefined') {
+    window.agentsService = agentsService;
+}
+
+export default agentsService;

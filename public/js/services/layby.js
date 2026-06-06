@@ -627,15 +627,15 @@ function formatDate(dateStr) {
 }
 
 // Export service functions for global access
-window.laybyService = {
+const laybyService = {
     renderLayby,
     recordPayment,
     viewDetails
 };
 
-export default {
-    renderLayby,
-    createLayby,
-    recordPayment,
-    viewDetails
-};
+// Make functions available globally for onclick handlers
+if (typeof window !== 'undefined') {
+    window.laybyService = laybyService;
+}
+
+export default laybyService;

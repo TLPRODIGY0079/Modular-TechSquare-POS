@@ -460,7 +460,7 @@ function viewTradeInDetails(tradeInId) {
 }
 
 // Export service functions for global access
-window.tradeInService = {
+const tradeInService = {
     renderTradeIn,
     approveTradeIn,
     rejectTradeIn,
@@ -468,11 +468,9 @@ window.tradeInService = {
     viewTradeInDetails
 };
 
-export default {
-    renderTradeIn,
-    createTradeIn,
-    approveTradeIn,
-    rejectTradeIn,
-    completeTradeIn,
-    viewTradeInDetails
-};
+// Make functions available globally for onclick handlers
+if (typeof window !== 'undefined') {
+    window.tradeInService = tradeInService;
+}
+
+export default tradeInService;

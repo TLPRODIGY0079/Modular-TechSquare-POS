@@ -1,0 +1,424 @@
+/* ============================================================================
+   TECHSQUARE POS - Agent Consignment System Styles
+   ============================================================================ */
+
+/* Agent Selection Popup */
+.agent-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 16px;
+}
+
+.agent-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg);
+}
+
+.agent-card:hover {
+  border-color: var(--ac);
+  background: var(--bg2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.agent-card.selected {
+  border-color: var(--ac);
+  background: var(--ac3);
+}
+
+.agent-info {
+  flex: 1;
+}
+
+.agent-name {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--tx);
+  margin-bottom: 4px;
+}
+
+.agent-details {
+  font-size: 12px;
+  color: var(--tx2);
+  display: flex;
+  gap: 16px;
+}
+
+.agent-balance {
+  text-align: right;
+}
+
+.balance-amount {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.balance-amount.positive {
+  color: var(--gn);
+}
+
+.balance-amount.negative {
+  color: var(--dn);
+}
+
+.balance-label {
+  font-size: 11px;
+  color: var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Agent Status Badges */
+.agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agent-status.active {
+  background: var(--gn2);
+  color: var(--gn);
+}
+
+.agent-status.inactive {
+  background: var(--dn2);
+  color: var(--dn);
+}
+
+/* Transaction Status Badges */
+.transaction-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.transaction-status.taken {
+  background: var(--wn2);
+  color: var(--wn);
+}
+
+.transaction-status.partial {
+  background: var(--ac3);
+  color: var(--ac);
+}
+
+.transaction-status.paid {
+  background: var(--gn2);
+  color: var(--gn);
+}
+
+.transaction-status.returned {
+  background: rgba(142, 142, 147, 0.1);
+  color: var(--tx2);
+}
+
+/* Agent Transaction Form */
+.agent-transaction-form {
+  display: grid;
+  gap: 16px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.product-selector {
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.product-selector:hover {
+  border-color: var(--ac);
+}
+
+.product-selector.selected {
+  border-color: var(--ac);
+  background: var(--ac3);
+}
+
+.product-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.product-details {
+  font-size: 12px;
+  color: var(--tx2);
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Agent Dashboard Widget */
+.agent-dashboard-widget {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.agent-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.agent-metric-card {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.metric-value.owed {
+  color: var(--wn);
+}
+
+.metric-value.collected {
+  color: var(--gn);
+}
+
+.metric-value.outstanding {
+  color: var(--dn);
+}
+
+.metric-label {
+  font-size: 12px;
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Top Agent Card */
+.top-agent-card {
+  background: linear-gradient(135deg, var(--ac) 0%, var(--ac2) 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.top-agent-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.top-agent-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 16px;
+}
+
+.top-agent-stat {
+  text-align: center;
+}
+
+.top-agent-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.top-agent-stat-label {
+  font-size: 11px;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Agent Transactions Table */
+.agent-transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.agent-transactions-table th,
+.agent-transactions-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--bd);
+}
+
+.agent-transactions-table th {
+  background: var(--bg2);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agent-transactions-table tr:hover {
+  background: var(--bg2);
+}
+
+/* Payment Modal */
+.payment-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.payment-methods {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.payment-method-btn {
+  padding: 12px;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.payment-method-btn:hover {
+  border-color: var(--ac);
+}
+
+.payment-method-btn.selected {
+  border-color: var(--ac);
+  background: var(--ac3);
+}
+
+/* Return Modal */
+.return-modal .quantity-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.quantity-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quantity-btn:hover {
+  background: var(--bg2);
+}
+
+.quantity-display {
+  min-width: 60px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Agent List Page */
+.agents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.agent-summary-card {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.agent-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.agent-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.agent-summary-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.agent-summary-stat {
+  text-align: center;
+  padding: 8px;
+  background: var(--bg2);
+  border-radius: 6px;
+}
+
+.agent-summary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .agent-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .top-agent-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .agents-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .agent-summary-stats {
+    grid-template-columns: 1fr;
+  }
+}
