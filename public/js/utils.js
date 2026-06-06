@@ -1,4 +1,5 @@
 // Utility functions for TECHSQUARE POS
+import { DEBUG } from './config.js';
 
 // DOM helper
 const $ = (id) => document.getElementById(id);
