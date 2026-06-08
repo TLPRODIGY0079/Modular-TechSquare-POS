@@ -315,25 +315,61 @@ async function processTradeInForm(e) {
             // Add traded-in item to warehouse as serialized item (since trade-in is auto-completed)
             try {
                 const serializedItemData = {
-                    id: uid(),
                     variant_id: null,
                     serial_number: serial_number || tradeInData.id,
                     imei: serial_number || null,
                     condition: condition,
-                    status: 'available',
+                    status: 'available', // Using 'available' to match database constraint
                     store_id: WAREHOUSE_ID,
-                    created_at: now(),
                     updated_at: now()
                 };
 
-                const { error: serialError } = await sb.from("serialized_items").insert([serializedItemData]);
+                // Check if serial number already exists to avoid duplicate constraint error
+                const { data: existingSerial } = await sb
+                    .from("serialized_items")
+                    .select("id")
+                    .eq("serial_number", serializedItemData.serial_number)
+                    .single();
+
+                let serialError;
+                if (existingSerial) {
+                    // Update existing item instead of inserting
+                    serialError = (await sb.from("serialized_items")
+                        .update(serializedItemData)
+                        .eq("id", existingSerial.id)).error;
+                } else {
+                    // Insert new item with ID
+                    serializedItemData.id = uid();
+                    serializedItemData.created_at = now();
+                    serialError = (await sb.from("serialized_items").insert([serializedItemData])).error;
+                }
+
                 if (serialError) throw serialError;
 
                 // Also add to local DB
+                const localSerialItem = {
+                    ...serializedItemData,
+                    id: existingSerial ? existingSerial.id : serializedItemData.id,
+                    created_at: existingSerial ? existingSerial.created_at : serializedItemData.created_at,
+                    // Add display fields (local only)
+                    product_name: item_name,
+                    trade_in_id: tradeInData.id,
+                    cost_price: trade_in_value,
+                    selling_price: sale_value,
+                    location: 'warehouse',
+                    notes: `Trade-in from ${customer_name}`
+                };
                 DB.serializedItems = DB.serializedItems || [];
-                DB.serializedItems.unshift(serializedItemData);
+                
+                // Remove existing if updating, otherwise add to front
+                if (existingSerial) {
+                    const idx = DB.serializedItems.findIndex(s => s.id === existingSerial.id);
+                    if (idx !== -1) DB.serializedItems[idx] = localSerialItem;
+                } else {
+                    DB.serializedItems.unshift(localSerialItem);
+                }
 
-                console.log("Trade-in phone added to warehouse inventory:", serializedItemData.serial_number);
+                console.log("Trade-in phone added to warehouse inventory:", localSerialItem.serial_number);
             } catch (serialError) {
                 console.error("Error adding trade-in item to warehouse:", serialError);
                 // Don't fail the whole trade-in if warehouse addition fails

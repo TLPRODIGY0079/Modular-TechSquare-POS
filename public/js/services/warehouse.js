@@ -442,7 +442,23 @@ function renderInventoryTab() {
     const DB = getDB();
     const products = DB.products.filter((p) => p.active !== false);
     const variants = DB.variants.filter((v) => v.active !== false);
-    const tradedInItems = DB.serializedItems?.filter(s => s.status === 'trade_in' && s.is_active !== false) || [];
+    const tradeIns = DB.tradeIns || [];
+
+    // Find all serialized items that match trade-in serial numbers
+    const tradedInItems = (DB.serializedItems || []).filter(item => {
+        return tradeIns.some(t => t.serial_number === item.serial_number);
+    }).map(item => {
+        const tradeIn = tradeIns.find(t => t.serial_number === item.serial_number);
+        return {
+            ...item,
+            product_name: tradeIn?.item_name || 'Unknown Trade-in Item',
+            trade_in_id: tradeIn?.id,
+            cost_price: tradeIn?.trade_in_value || 0,
+            selling_price: tradeIn?.sale_value || 0,
+            location: 'warehouse',
+            notes: tradeIn ? `Trade-in from ${tradeIn.customer_name || 'Customer'}` : 'Trade-in item'
+        };
+    });
 
     // Group variants by product
     const productMap = {};
@@ -551,7 +567,7 @@ function renderInventoryTab() {
                   <td><span class="badge badge-blue">${esc(item.condition || 'Unknown')}</span></td>
                   <td style="text-align:right;color:var(--tx2)">K${(item.cost_price || 0).toFixed(2)}</td>
                   <td style="text-align:right">K${(item.selling_price || 0).toFixed(2)}</td>
-                  <td><span class="badge badge-orange">${esc(item.status || 'trade_in')}</span></td>
+                  <td><span class="badge badge-orange">${esc(item.status || 'available')}</span></td>
                   <td><span class="badge badge-gray">${esc(item.location || 'warehouse')}</span></td>
                   <td style="font-size: 12px; color: var(--tx2); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(item.notes || '-')}</td>
                 </tr>
