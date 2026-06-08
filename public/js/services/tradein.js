@@ -437,7 +437,7 @@ async function processTradeInForm(e) {
                     console.error("Trade-in sale record error:", saleErr);
                 } else {
                     DB.sales.unshift(saleData);
-                    console.log("Trade-in sale record created:", receiptNumber);
+                    console.log("Trade-in sale record created:", receiptNumber, "payment_method:", saleData.payment_method);
 
                     // Create commission record if variant has commission rate
                     if (variant && variant.commission_rate > 0) {

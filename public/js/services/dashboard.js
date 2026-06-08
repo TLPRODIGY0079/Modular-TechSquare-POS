@@ -194,14 +194,16 @@ function renderRecentSales() {
                 </tr>
             </thead>
             <tbody>
-                ${recentSales.map(sale => `
+                ${recentSales.map(sale => {
+                    console.log("Recent sale payment_method:", sale.payment_method, "receipt:", sale.receipt_number);
+                    return `
                     <tr>
                         <td><strong>${esc(sale.receipt_number)}</strong></td>
-                        <td>${sale.payment_method === 'trade_in' ? '<span class="badge badge-purple">Trade-in</span>' : sale.payment_method === 'layby' ? '<span class="badge badge-orange">Layby</span>' : '<span class="badge badge-gray">Sale</span>'}</td>
+                        <td>${sale.payment_method === 'trade_in' ? '<span class="badge badge-blue">Trade-in</span>' : sale.payment_method === 'layby' ? '<span class="badge badge-orange">Layby</span>' : '<span class="badge badge-gray">Sale</span>'}</td>
                         <td>${esc(sale.customer_name || 'Walk-in')}</td>
                         <td><strong>${money(sale.total)}</strong></td>
                     </tr>
-                `).join('')}
+                `;}).join('')}
             </tbody>
         </table>
     `;
