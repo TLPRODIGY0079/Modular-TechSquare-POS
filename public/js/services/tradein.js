@@ -60,11 +60,11 @@ export function renderTradeIn() {
                                         <label>Condition *</label>
                                         <select class="form-input" id="tradeInCondition" required>
                                             <option value="">Select condition</option>
-                                            <option value="Excellent">Excellent</option>
-                                            <option value="Good">Good</option>
-                                            <option value="Fair">Fair</option>
-                                            <option value="Poor">Poor</option>
-                                            <option value="Damaged">Damaged</option>
+                                            <option value="excellent">Excellent</option>
+                                            <option value="good">Good</option>
+                                            <option value="fair">Fair</option>
+                                            <option value="poor">Poor</option>
+                                            <option value="damaged">Damaged</option>
                                         </select>
                                     </div>
                                 </div>
@@ -454,9 +454,10 @@ function openTradeInModal() {
                         <label>Condition *</label>
                         <select class="form-input" id="tradeInCondition" required>
                             <option value="">Select condition</option>
-                            <option value="new">New</option>
-                            <option value="used">Used</option>
-                            <option value="refurbished">Refurbished</option>
+                            <option value="excellent">Excellent</option>
+                            <option value="good">Good</option>
+                            <option value="fair">Fair</option>
+                            <option value="poor">Poor</option>
                             <option value="damaged">Damaged</option>
                         </select>
                     </div>

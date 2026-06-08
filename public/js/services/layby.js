@@ -220,9 +220,11 @@ async function createLayby() {
         laybyData.layby_number = laybyNo;
 
         if (sb) {
+            // Remove layby_number from data being sent to Supabase (not in database schema)
+            const { layby_number, ...dbData } = laybyData;
             const { data: layby, error } = await sb
                 .from("layby_transactions")
-                .insert([laybyData])
+                .insert([dbData])
                 .select()
                 .single();
             if (error) throw error;
