@@ -192,17 +192,13 @@ async function createLayby() {
         return;
     }
 
-    console.log("DEBUG - Found variant:", variant);
-    console.log("DEBUG - Variant product_id:", variant.product_id);
-
     const product = DB.products.find((p) => p.id === variant.product_id);
     if (!product) {
         toast("Product not found", "error");
         return;
     }
 
-    console.log("DEBUG - Found product:", product);
-    console.log("DEBUG - Product name:", product.name);
+    console.log("Layby product_name:", product.name); // Debug log to verify product name
 
     const laybyNo = "LB-" + String((DB.laybys || []).length + 1).padStart(5, "0");
     const balance = total - initial;
@@ -222,13 +218,12 @@ async function createLayby() {
             amount_paid: initial,
             balance: balance,
             status: balance > 0 ? "active" : "completed",
+            start_date: today(), // Required field in database schema
+            completion_date: balance <= 0 ? today() : null, // Database expects completion_date
             notes: notes,
             created_at: now(),
             updated_at: now(),
-            completed_at: balance <= 0 ? now() : null,
         };
-
-        console.log("DEBUG - Layby data before insert:", laybyData);
 
         // Add layby_number locally only (not in database schema)
         laybyData.layby_number = laybyNo;
@@ -236,8 +231,7 @@ async function createLayby() {
         if (sb) {
             // Remove layby_number from data being sent to Supabase (not in database schema)
             const { layby_number, ...dbData } = laybyData;
-            console.log("DEBUG - Data being sent to Supabase:", dbData);
-            console.log("DEBUG - Product name in Supabase data:", dbData.product_name);
+            console.log("Sending to Supabase:", { product_name: dbData.product_name, start_date: dbData.start_date }); // Debug log
             
             const { data: layby, error } = await sb
                 .from("layby_transactions")
