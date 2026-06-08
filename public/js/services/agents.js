@@ -850,7 +850,6 @@ const agentsService = {
     confirmAgentTransaction,
     renderAgentsGrid,
     openNewAgentModal,
-    createAgent,
     loadAgentMetrics,
     saveAgent,
     viewAgentDetails,

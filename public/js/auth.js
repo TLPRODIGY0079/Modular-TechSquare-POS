@@ -6,18 +6,22 @@ import { toast } from './ui/toast.js';
 // Restore user session
 async function restoreSession() {
     const sb = getSupabase();
-    
+
     if (!sb) {
         // Supabase SDK not available — try to restore from localStorage cache
-        const cached = localStorage.getItem("techsquare-cached-user");
-        if (cached) {
-            try {
-                const user = JSON.parse(cached);
-                setCurrentUser(user);
-                return true;
-            } catch (e) {
-                console.error("Failed to parse cached user:", e);
+        try {
+            const cached = localStorage.getItem("techsquare-cached-user");
+            if (cached) {
+                try {
+                    const user = JSON.parse(cached);
+                    setCurrentUser(user);
+                    return true;
+                } catch (e) {
+                    console.error("Failed to parse cached user:", e);
+                }
             }
+        } catch (storageError) {
+            console.warn("LocalStorage access blocked, cannot restore session:", storageError);
         }
         return false;
     }
@@ -45,10 +49,16 @@ async function restoreSession() {
                 noProfile: true,
             };
             setCurrentUser(userData);
-            localStorage.setItem(
-                "techsquare-cached-user",
-                JSON.stringify(userData),
-            );
+
+            try {
+                localStorage.setItem(
+                    "techsquare-cached-user",
+                    JSON.stringify(userData),
+                );
+            } catch (storageError) {
+                console.warn("LocalStorage access blocked, user not cached:", storageError);
+            }
+
             return true;
         }
 
@@ -60,10 +70,16 @@ async function restoreSession() {
             storeId: profile.store_id,
         };
         setCurrentUser(userData);
-        localStorage.setItem(
-            "techsquare-cached-user",
-            JSON.stringify(userData),
-        );
+
+        try {
+            localStorage.setItem(
+                "techsquare-cached-user",
+                JSON.stringify(userData),
+            );
+        } catch (storageError) {
+            console.warn("LocalStorage access blocked, user not cached:", storageError);
+        }
+
         return true;
     } catch (error) {
         console.error("Session restore error:", error);
@@ -74,7 +90,7 @@ async function restoreSession() {
 // Sign in with email and password
 async function signIn(email, password) {
     const sb = getSupabase();
-    
+
     if (!sb) {
         return { ok: false, error: "Cannot sign in while offline" };
     }
@@ -109,13 +125,20 @@ async function signIn(email, password) {
             role: profile.role,
             storeId: profile.store_id,
         };
-        
+
         setCurrentUser(user);
-        localStorage.setItem(
-            "techsquare-cached-user",
-            JSON.stringify(user),
-        );
-        
+
+        // Handle localStorage with error catching for tracking prevention
+        try {
+            localStorage.setItem(
+                "techsquare-cached-user",
+                JSON.stringify(user),
+            );
+        } catch (storageError) {
+            console.warn("LocalStorage access blocked, user not cached:", storageError);
+            // Continue without caching - session will still work
+        }
+
         return { ok: true };
     } catch (error) {
         console.error("Sign in error:", error);
@@ -126,7 +149,7 @@ async function signIn(email, password) {
 // Sign out
 async function logout() {
     const sb = getSupabase();
-    
+
     if (sb) {
         try {
             await sb.auth.signOut();
@@ -134,10 +157,15 @@ async function logout() {
             console.error("Sign out error:", error);
         }
     }
-    
-    localStorage.removeItem("techsquare-cached-user");
+
+    try {
+        localStorage.removeItem("techsquare-cached-user");
+    } catch (storageError) {
+        console.warn("LocalStorage access blocked, cannot remove cached user:", storageError);
+    }
+
     setCurrentUser(null);
-    
+
     // Redirect to login page
     window.location.replace("login.html");
 }
