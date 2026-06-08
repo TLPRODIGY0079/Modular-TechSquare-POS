@@ -192,6 +192,12 @@ async function createLayby() {
         return;
     }
 
+    const product = DB.products.find((p) => p.id === variant.product_id);
+    if (!product) {
+        toast("Product not found", "error");
+        return;
+    }
+
     const laybyNo = "LB-" + String((DB.laybys || []).length + 1).padStart(5, "0");
     const balance = total - initial;
 
@@ -203,7 +209,7 @@ async function createLayby() {
             user_name: user?.name,
             customer_name: custName,
             customer_phone: custPhone,
-            product_name: variant.product_name,
+            product_name: product.name,
             variant_id: variantId,
             total_price: total,
             deposit_amount: initial,
