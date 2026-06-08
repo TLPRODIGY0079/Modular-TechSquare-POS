@@ -292,7 +292,7 @@ async function processTradeInForm(e) {
             new_device_variant: variant ? `${variant.color || ''} ${variant.storage || ''}`.trim() : '',
             trade_in_value: trade_in_value,
             sale_value: sale_value,
-            status: "pending",
+            status: "completed", // Auto-complete trade-ins when created
             notes: "",
             created_at: now(),
             updated_at: now()
@@ -311,6 +311,33 @@ async function processTradeInForm(e) {
         if (sb) {
             const { error } = await sb.from("trade_in_transactions").insert([dbData]);
             if (error) throw error;
+
+            // Add traded-in item to warehouse as serialized item (since trade-in is auto-completed)
+            try {
+                const serializedItemData = {
+                    id: uid(),
+                    variant_id: null,
+                    serial_number: serial_number || tradeInData.id,
+                    imei: serial_number || null,
+                    condition: condition,
+                    status: 'available',
+                    store_id: WAREHOUSE_ID,
+                    created_at: now(),
+                    updated_at: now()
+                };
+
+                const { error: serialError } = await sb.from("serialized_items").insert([serializedItemData]);
+                if (serialError) throw serialError;
+
+                // Also add to local DB
+                DB.serializedItems = DB.serializedItems || [];
+                DB.serializedItems.unshift(serializedItemData);
+
+                console.log("Trade-in phone added to warehouse inventory:", serializedItemData.serial_number);
+            } catch (serialError) {
+                console.error("Error adding trade-in item to warehouse:", serialError);
+                // Don't fail the whole trade-in if warehouse addition fails
+            }
         }
 
         // Save to local DB with all fields
