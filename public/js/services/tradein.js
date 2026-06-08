@@ -437,7 +437,6 @@ async function processTradeInForm(e) {
                     console.error("Trade-in sale record error:", saleErr);
                 } else {
                     DB.sales.unshift(saleData);
-                    console.log("Trade-in sale record created:", receiptNumber, "payment_method:", saleData.payment_method);
 
                     // Create commission record if variant has commission rate
                     if (variant && variant.commission_rate > 0) {
@@ -490,6 +489,9 @@ async function processTradeInForm(e) {
         
         // Re-render to show new trade-in
         renderTradeIn();
+        
+        // Trigger dashboard refresh event
+        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { type: 'trade-in' } }));
         
         toast("Trade-in created successfully", "success");
     } catch (error) {

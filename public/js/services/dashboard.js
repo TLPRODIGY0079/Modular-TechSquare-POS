@@ -14,6 +14,13 @@ export function renderDashboard() {
     
     if (!mainContent) return;
 
+    // Listen for data updates from other services
+    const handleDataUpdate = () => {
+        renderRecentSales();
+    };
+    
+    window.addEventListener('dataUpdated', handleDataUpdate);
+
     // Calculate dashboard metrics
     const todaySales = DB.sales.filter(s => s.date_str === today());
     const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
@@ -194,16 +201,14 @@ function renderRecentSales() {
                 </tr>
             </thead>
             <tbody>
-                ${recentSales.map(sale => {
-                    console.log("Recent sale payment_method:", sale.payment_method, "receipt:", sale.receipt_number);
-                    return `
+                ${recentSales.map(sale => `
                     <tr>
                         <td><strong>${esc(sale.receipt_number)}</strong></td>
                         <td>${sale.payment_method === 'trade_in' ? '<span class="badge badge-blue">Trade-in</span>' : sale.payment_method === 'layby' ? '<span class="badge badge-orange">Layby</span>' : '<span class="badge badge-gray">Sale</span>'}</td>
                         <td>${esc(sale.customer_name || 'Walk-in')}</td>
                         <td><strong>${money(sale.total)}</strong></td>
                     </tr>
-                `;}).join('')}
+                `).join('')}
             </tbody>
         </table>
     `;
