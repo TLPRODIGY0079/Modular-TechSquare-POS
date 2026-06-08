@@ -188,6 +188,7 @@ function renderRecentSales() {
             <thead>
                 <tr>
                     <th>Receipt</th>
+                    <th>Type</th>
                     <th>Customer</th>
                     <th>Amount</th>
                 </tr>
@@ -196,6 +197,7 @@ function renderRecentSales() {
                 ${recentSales.map(sale => `
                     <tr>
                         <td><strong>${esc(sale.receipt_number)}</strong></td>
+                        <td>${sale.payment_method === 'trade_in' ? '<span class="badge badge-purple">Trade-in</span>' : sale.payment_method === 'layby' ? '<span class="badge badge-orange">Layby</span>' : '<span class="badge badge-gray">Sale</span>'}</td>
                         <td>${esc(sale.customer_name || 'Walk-in')}</td>
                         <td><strong>${money(sale.total)}</strong></td>
                     </tr>
