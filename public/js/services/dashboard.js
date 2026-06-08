@@ -14,13 +14,6 @@ export function renderDashboard() {
     
     if (!mainContent) return;
 
-    // Listen for data updates from other services
-    const handleDataUpdate = () => {
-        renderRecentSales();
-    };
-    
-    window.addEventListener('dataUpdated', handleDataUpdate);
-
     // Calculate dashboard metrics
     const todaySales = DB.sales.filter(s => s.date_str === today());
     const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);

@@ -444,9 +444,14 @@ function renderInventoryTab() {
     const variants = DB.variants.filter((v) => v.active !== false);
     const tradeIns = DB.tradeIns || [];
 
+    console.log("DEBUG Warehouse - Trade-ins count:", tradeIns.length);
+    console.log("DEBUG Warehouse - Serialized items count:", (DB.serializedItems || []).length);
+
     // Find all serialized items that match trade-in serial numbers
     const tradedInItems = (DB.serializedItems || []).filter(item => {
-        return tradeIns.some(t => t.serial_number === item.serial_number);
+        const isTradeIn = tradeIns.some(t => t.serial_number === item.serial_number);
+        console.log("DEBUG Warehouse - Item serial:", item.serial_number, "is trade-in:", isTradeIn);
+        return isTradeIn;
     }).map(item => {
         const tradeIn = tradeIns.find(t => t.serial_number === item.serial_number);
         return {
@@ -459,6 +464,8 @@ function renderInventoryTab() {
             notes: tradeIn ? `Trade-in from ${tradeIn.customer_name || 'Customer'}` : 'Trade-in item'
         };
     });
+
+    console.log("DEBUG Warehouse - Traded-in items found:", tradedInItems.length);
 
     // Group variants by product
     const productMap = {};

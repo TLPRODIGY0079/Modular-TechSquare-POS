@@ -369,7 +369,9 @@ async function processTradeInForm(e) {
                     DB.serializedItems.unshift(localSerialItem);
                 }
 
-                console.log("Trade-in phone added to warehouse inventory:", localSerialItem.serial_number);
+                console.log("DEBUG Trade-in - Serialized item added to local DB:", localSerialItem.serial_number);
+                console.log("DEBUG Trade-in - Total serialized items in local DB:", DB.serializedItems.length);
+                console.log("DEBUG Trade-in - Total trade-ins in local DB:", DB.tradeIns.length);
             } catch (serialError) {
                 console.error("Error adding trade-in item to warehouse:", serialError);
                 // Don't fail the whole trade-in if warehouse addition fails
@@ -490,8 +492,22 @@ async function processTradeInForm(e) {
         // Re-render to show new trade-in
         renderTradeIn();
         
-        // Trigger dashboard refresh event
-        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { type: 'trade-in' } }));
+        // Re-render dashboard recent sales to show trade-in badge
+        const recentSalesContainer = document.getElementById("recentSales");
+        if (recentSalesContainer) {
+            // Import and re-render recent sales directly
+            import('./dashboard.js').then(({ renderRecentSales }) => {
+                renderRecentSales();
+            });
+        }
+        
+        // Re-render warehouse if it's currently visible
+        const warehouseContent = document.getElementById("warehouseTabContent");
+        if (warehouseContent) {
+            import('./warehouse.js').then(({ renderWarehouse }) => {
+                renderWarehouse();
+            });
+        }
         
         toast("Trade-in created successfully", "success");
     } catch (error) {
