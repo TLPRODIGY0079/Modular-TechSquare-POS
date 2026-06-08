@@ -197,7 +197,6 @@ async function createLayby() {
 
     try {
         const laybyData = {
-            layby_number: laybyNo,
             id: uid(),
             store_id: user?.storeId || STORE1_ID,
             user_id: user?.id,
@@ -216,6 +215,9 @@ async function createLayby() {
             updated_at: now(),
             completed_at: balance <= 0 ? now() : null,
         };
+
+        // Add layby_number locally only (not in database schema)
+        laybyData.layby_number = laybyNo;
 
         if (sb) {
             const { data: layby, error } = await sb

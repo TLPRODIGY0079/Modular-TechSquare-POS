@@ -142,6 +142,7 @@ async function loadDB() {
                 DB.laybys = (await offlineDB.getAll("layby_transactions")) || [];
                 DB.laybyPayments = (await offlineDB.getAll("layby_payments")) || [];
                 DB.commissionRecords = (await offlineDB.getAll("commission_records")) || [];
+                DB.agents = (await offlineDB.getAll("agents")) || [];
 
                 log("Loaded from IndexedDB:", {
                     products: DB.products.length,
@@ -164,6 +165,7 @@ async function loadDB() {
                     laybys: [],
                     laybyPayments: [],
                     commissionRecords: [],
+                    agents: [],
                 };
             }
         }
@@ -198,6 +200,7 @@ async function loadDB() {
                     sb.from("layby_transactions").select("*").order("created_at", { ascending: false }),
                     sb.from("layby_payments").select("*").order("created_at", { ascending: false }),
                     sb.from("commission_records").select("*").order("created_at", { ascending: false }),
+                    sb.from("agents").select("*").order("created_at", { ascending: false }),
                 ]);
 
                 const [
@@ -211,6 +214,7 @@ async function loadDB() {
                     lbR,
                     lbpR,
                     crR,
+                    agR,
                 ] = await Promise.race([
                     supabasePromise,
                     timeoutPromise,
@@ -228,6 +232,7 @@ async function loadDB() {
                 if (lbR && lbR.data) DB.laybys = lbR.data;
                 if (lbpR && lbpR.data) DB.laybyPayments = lbpR.data;
                 if (crR && crR.data) DB.commissionRecords = crR.data;
+                if (agR && agR.data) DB.agents = agR.data;
 
                 // Update IndexedDB with fresh data
                 if (offlineDB) {
@@ -241,6 +246,7 @@ async function loadDB() {
                             ...DB.tradeIns.map((t) => offlineDB.put("trade_in_transactions", t)),
                             ...DB.expenses.map((e) => offlineDB.put("expenses", e)),
                             ...DB.commissionRecords.map((c) => offlineDB.put("commission_records", c)),
+                            ...DB.agents.map((a) => offlineDB.put("agents", a)),
                         ]);
                     } catch (cacheError) {
                         console.error("Failed to cache data in IndexedDB:", cacheError);

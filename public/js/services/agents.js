@@ -1,7 +1,4 @@
-/**
- * Agent and Commission Service
- * Handles agent management, commission calculations, and agent transactions
- */
+
 
 import { getDB, getCurrentUser } from '../db.js';
 import { getSupabase } from '../supabase-client.js';
@@ -76,7 +73,7 @@ export async function calculateCommission(
                 const offlineDB = window.offlineDB;
                 if (offlineDB) {
                     await offlineDB.put(
-                        "commissionRecords",
+                        "commission_records",
                         commissionRecord,
                     );
                     log(
@@ -104,7 +101,7 @@ export async function calculateCommission(
                         if (offlineDB) {
                             await offlineDB.queueOperation(
                                 "create",
-                                "commissionRecords",
+                                "commission_records",
                                 commissionRecord,
                             );
                         }
@@ -114,7 +111,7 @@ export async function calculateCommission(
                     if (offlineDB) {
                         await offlineDB.queueOperation(
                             "create",
-                            "commissionRecords",
+                            "commission_records",
                             commissionRecord,
                         );
                         log("📤 Commission record queued for sync");

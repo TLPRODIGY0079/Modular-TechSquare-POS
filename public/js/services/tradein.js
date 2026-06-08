@@ -302,14 +302,19 @@ async function processTradeInForm(e) {
         // Store variant_id locally for later inventory deduction (not saved to DB to avoid schema issues)
         tradeInData._variant_id = variant_id;
         tradeInData._variant = variant;
-        
+
+        // Create database copy without local-only fields
+        const dbData = { ...tradeInData };
+        delete dbData._variant_id;
+        delete dbData._variant;
+
         // Save to Supabase
         if (sb) {
-            const { error } = await sb.from("trade_in_transactions").insert([tradeInData]);
+            const { error } = await sb.from("trade_in_transactions").insert([dbData]);
             if (error) throw error;
         }
-        
-        // Save to local DB
+
+        // Save to local DB with all fields
         DB.tradeIns.unshift(tradeInData);
         
         // Clear form

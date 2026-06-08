@@ -4,7 +4,7 @@
 class OfflineDB {
     constructor() {
         this.dbName = 'TechSquarePOS';
-        this.dbVersion = 2; // Incremented to trigger schema update
+        this.dbVersion = 3; // Incremented to trigger schema update
         this.db = null;
         this.syncQueue = [];
     }
@@ -32,6 +32,13 @@ class OfflineDB {
                             db.deleteObjectStore(storeName);
                         }
                     });
+                }
+
+                // Migration from version 2 to 3: add agents store
+                if (currentVersion < 3) {
+                    if (!db.objectStoreNames.contains('agents')) {
+                        db.createObjectStore('agents', { keyPath: 'id' });
+                    }
                 }
 
                 // Create object stores with snake_case names
@@ -67,6 +74,9 @@ class OfflineDB {
                 }
                 if (!db.objectStoreNames.contains('stock_requests')) {
                     db.createObjectStore('stock_requests', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('agents')) {
+                    db.createObjectStore('agents', { keyPath: 'id' });
                 }
                 if (!db.objectStoreNames.contains('sync_queue')) {
                     db.createObjectStore('sync_queue', { keyPath: 'id' });

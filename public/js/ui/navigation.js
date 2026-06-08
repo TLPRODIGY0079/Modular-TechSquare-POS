@@ -65,6 +65,12 @@ const PAGES = [
         icon: "fa-warehouse",
         roles: ["admin", "store_manager"],
     },
+    {
+        id: "agents",
+        label: "Agents",
+        icon: "fa-user-tie",
+        roles: ["admin", "store_manager"],
+    },
 ];
 
 // Get pages configuration
@@ -271,6 +277,11 @@ async function navigate(page) {
                 case "warehouse":
                     if (typeof renderWarehouse === 'function') {
                         await renderWarehouse();
+                    }
+                    break;
+                case "agents":
+                    if (typeof renderAgents === 'function') {
+                        await renderAgents();
                     }
                     break;
                 default:
