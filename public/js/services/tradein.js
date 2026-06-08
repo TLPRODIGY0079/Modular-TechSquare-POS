@@ -338,6 +338,34 @@ async function processTradeInForm(e) {
                 console.error("Error adding trade-in item to warehouse:", serialError);
                 // Don't fail the whole trade-in if warehouse addition fails
             }
+
+            // Deduct the new device variant from inventory (like layby does)
+            if (variant) {
+                try {
+                    const newQty = Math.max(0, (variant.qty || 0) - 1);
+                    const variantUpdate = {
+                        qty: newQty,
+                        updated_at: now(),
+                    };
+                    const { error: vErr } = await sb
+                        .from("variants")
+                        .update(variantUpdate)
+                        .eq("id", variant.id);
+                    if (vErr) {
+                        console.error("Trade-in variant qty error:", vErr);
+                    } else {
+                        // Update in-memory
+                        const vIdx = DB.variants.findIndex((x) => x.id === variant.id);
+                        if (vIdx !== -1) {
+                            DB.variants[vIdx].qty = newQty;
+                        }
+                        console.log("Trade-in: Deducted 1 from variant inventory, new qty:", newQty);
+                    }
+                } catch (variantError) {
+                    console.error("Error deducting variant inventory:", variantError);
+                    // Don't fail the whole trade-in if variant deduction fails
+                }
+            }
         }
 
         // Save to local DB with all fields
