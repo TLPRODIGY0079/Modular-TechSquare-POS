@@ -65,11 +65,34 @@ export function renderDashboard() {
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-top: 24px;">
             <div class="card">
                 <div class="card-header">
-                    <h3 style="font-size: 16px; font-weight: 700;">Recent Sales</h3>
+                    <h3 style="font-size: 16px; font-weight: 700;">Financial Summary</h3>
                 </div>
-                <div class="card-body">
-                    <div id="recentSales">
-                        <!-- Recent sales will be rendered here -->
+                <div class="card-body" style="padding: 16px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="color: var(--tx2);">Revenue:</span>
+                        <span style="font-weight: 700;" id="finRevenue">${money(totalRevenue)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="color: var(--tx2);">COGS:</span>
+                        <span style="font-weight: 700; color: var(--dn);" id="finCOGS">${money(calculateCOGS())}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px; padding-top: 8px; border-top: 1px solid var(--bd);">
+                        <span style="color: var(--tx2);">Gross Profit:</span>
+                        <span style="font-weight: 700; color: var(--gn);" id="finGross">${money(totalProfit)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="color: var(--tx2);">Expenses:</span>
+                        <span style="font-weight: 700; color: var(--dn);" id="finExpenses">${money(calculateExpenses())}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--bd);">
+                        <span style="font-weight: 600;">Net Profit:</span>
+                        <span style="font-weight: 700; font-size: 18px; color: var(--ac);" id="finNet">${money(calculateNetProfit())}</span>
+                    </div>
+                    <div style="margin-top: 12px; padding: 8px; background: var(--bg); border-radius: 6px; font-size: 12px; color: var(--tx2);">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Profit Margin:</span>
+                            <span id="finMargin">${calculateProfitMargin()}%</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -97,13 +120,49 @@ export function renderDashboard() {
     `;
 
     // Render recent sales
-    renderRecentSales();
+    // renderRecentSales();
     
     // Load agent metrics
     loadAgentMetrics();
     
     // Render revenue chart
     renderRevenueChart();
+}
+
+// Helper functions for Financial Summary
+function calculateCOGS() {
+    const DB = getDB();
+    const todaySales = DB.sales.filter(s => s.date_str === today());
+    return todaySales.reduce((sum, s) => {
+        const quantity = Number(s.quantity || 1);
+        const costPrice = Number(s.cost_price || 0);
+        return sum + costPrice * quantity;
+    }, 0);
+}
+
+function calculateExpenses() {
+    const DB = getDB();
+    const todayExpenses = (DB.expenses || []).filter(e => e.date === today());
+    return todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+}
+
+function calculateNetProfit() {
+    const DB = getDB();
+    const todaySales = DB.sales.filter(s => s.date_str === today());
+    const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
+    const totalProfit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
+    const todayExpenses = (DB.expenses || []).filter(e => e.date === today());
+    const totalExpenses = todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    return totalProfit - totalExpenses;
+}
+
+function calculateProfitMargin() {
+    const DB = getDB();
+    const todaySales = DB.sales.filter(s => s.date_str === today());
+    const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
+    const totalProfit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
+    if (totalRevenue === 0) return 0;
+    return ((totalProfit / totalRevenue) * 100).toFixed(1);
 }
 
 // Render recent sales
