@@ -402,6 +402,84 @@ async function processTradeInForm(e) {
                     // Don't fail the whole trade-in if variant deduction fails
                 }
             }
+
+            // Create sales record for trade-in (like layby does)
+            try {
+                const receiptNumber = "TRDIN-" + String((DB.sales || []).length + 1).padStart(5, "0");
+                const saleData = {
+                    id: uid(),
+                    store_id: user?.storeId || STORE1_ID,
+                    user_id: user?.id,
+                    user_name: user?.name,
+                    receipt_number: receiptNumber,
+                    product_name: product?.name || tradeInData.item_name,
+                    sku: variant?.sku || "TRADEIN",
+                    variant_label: variant
+                        ? `${variant.color || ""} ${variant.storage || ""}`.trim()
+                        : "",
+                    quantity: 1,
+                    unit_price: sale_value,
+                    cost_price: trade_in_value,
+                    subtotal: sale_value,
+                    discount: trade_in_value, // Trade-in value acts as discount
+                    total: sale_value - trade_in_value,
+                    profit: (sale_value - trade_in_value) - trade_in_value,
+                    commission_rate: variant?.commission_rate || 0,
+                    payment_method: "trade_in",
+                    customer_name: customer_name || "Trade-in Customer",
+                    identifier: serial_number,
+                    date_str: today(),
+                    created_at: now(),
+                };
+
+                const { error: saleErr } = await sb.from("sales").insert([saleData]);
+                if (saleErr) {
+                    console.error("Trade-in sale record error:", saleErr);
+                } else {
+                    DB.sales.unshift(saleData);
+                    console.log("Trade-in sale record created:", receiptNumber);
+
+                    // Create commission record if variant has commission rate
+                    if (variant && variant.commission_rate > 0) {
+                        const commissionAmount = (sale_value - trade_in_value) * (variant.commission_rate / 100);
+                        const commissionData = {
+                            id: uid(),
+                            agent_id: user?.id,
+                            agent_name: user?.name,
+                            store_id: user?.storeId || STORE1_ID,
+                            receipt_number: receiptNumber,
+                            total_amount: sale_value - trade_in_value,
+                            commission_rate: variant.commission_rate,
+                            commission_amount: commissionAmount,
+                            status: "pending",
+                            items: JSON.stringify([{
+                                product_name: product?.name || tradeInData.item_name,
+                                variant_label: variant
+                                    ? `${variant.color || ""} ${variant.storage || ""}`.trim()
+                                    : "",
+                                quantity: 1,
+                                unit_price: sale_value,
+                                commission_rate: variant.commission_rate,
+                                commission_amount: commissionAmount
+                            }]),
+                            sale_date: today(),
+                            created_at: now(),
+                        };
+
+                        const { error: commErr } = await sb.from("commission_records").insert([commissionData]);
+                        if (commErr) {
+                            console.error("Trade-in commission record error:", commErr);
+                        } else {
+                            DB.commissionRecords = DB.commissionRecords || [];
+                            DB.commissionRecords.unshift(commissionData);
+                            console.log("Trade-in commission record created:", commissionAmount);
+                        }
+                    }
+                }
+            } catch (saleError) {
+                console.error("Error creating trade-in sale record:", saleError);
+                // Don't fail the whole trade-in if sale record creation fails
+            }
         }
 
         // Save to local DB with all fields
