@@ -312,70 +312,39 @@ async function processTradeInForm(e) {
             const { error } = await sb.from("trade_in_transactions").insert([dbData]);
             if (error) throw error;
 
-            // Add traded-in item to warehouse as serialized item (since trade-in is auto-completed)
+            // Add traded-in item as a regular variant (simplified approach)
             try {
-                const serializedItemData = {
-                    variant_id: null,
-                    serial_number: serial_number || tradeInData.id,
-                    imei: serial_number || null,
-                    condition: condition,
-                    status: 'available', // Using 'available' to match database constraint
+                const tradeInVariantData = {
+                    id: uid(),
+                    product_id: variant ? variant.product_id : null,
+                    sku: `TRADEIN-${serial_number || tradeInData.id}`,
+                    color: tradeInData.condition,
+                    storage: "Trade-in",
+                    price: sale_value,
+                    cost_price: trade_in_value,
+                    qty: 1,
                     store_id: WAREHOUSE_ID,
+                    is_active: true,
+                    is_trade_in: true, // Flag to identify as trade-in
+                    trade_in_id: tradeInData.id,
+                    original_serial: serial_number,
+                    created_at: now(),
                     updated_at: now()
                 };
 
-                // Check if serial number already exists to avoid duplicate constraint error
-                const { data: existingSerial } = await sb
-                    .from("serialized_items")
-                    .select("id")
-                    .eq("serial_number", serializedItemData.serial_number)
-                    .single();
-
-                let serialError;
-                if (existingSerial) {
-                    // Update existing item instead of inserting
-                    serialError = (await sb.from("serialized_items")
-                        .update(serializedItemData)
-                        .eq("id", existingSerial.id)).error;
-                } else {
-                    // Insert new item with ID
-                    serializedItemData.id = uid();
-                    serializedItemData.created_at = now();
-                    serialError = (await sb.from("serialized_items").insert([serializedItemData])).error;
-                }
-
-                if (serialError) throw serialError;
+                const { error: variantError } = await sb.from("variants").insert([tradeInVariantData]);
+                if (variantError) throw variantError;
 
                 // Also add to local DB
-                const localSerialItem = {
-                    ...serializedItemData,
-                    id: existingSerial ? existingSerial.id : serializedItemData.id,
-                    created_at: existingSerial ? existingSerial.created_at : serializedItemData.created_at,
-                    // Add display fields (local only)
-                    product_name: item_name,
-                    trade_in_id: tradeInData.id,
-                    cost_price: trade_in_value,
-                    selling_price: sale_value,
-                    location: 'warehouse',
-                    notes: `Trade-in from ${customer_name}`
-                };
-                DB.serializedItems = DB.serializedItems || [];
-                
-                // Remove existing if updating, otherwise add to front
-                if (existingSerial) {
-                    const idx = DB.serializedItems.findIndex(s => s.id === existingSerial.id);
-                    if (idx !== -1) DB.serializedItems[idx] = localSerialItem;
-                } else {
-                    DB.serializedItems.unshift(localSerialItem);
-                }
+                DB.variants = DB.variants || [];
+                DB.variants.unshift(tradeInVariantData);
 
-                console.log("DEBUG Trade-in - Serialized item added to local DB:", localSerialItem.serial_number);
-                console.log("DEBUG Trade-in - Total serialized items in local DB:", DB.serializedItems.length);
-                console.log("DEBUG Trade-in - Total trade-ins in local DB:", DB.tradeIns.length);
-            } catch (serialError) {
-                console.error("Error adding trade-in item to warehouse:", serialError);
-                // Don't fail the whole trade-in if warehouse addition fails
+                console.log("Trade-in: Added as variant:", tradeInVariantData.sku);
+            } catch (variantError) {
+                console.error("Error adding trade-in as variant:", variantError);
+                // Don't fail the whole trade-in if variant addition fails
             }
+        }
 
             // Deduct the new device variant from inventory (like layby does)
             if (variant) {
