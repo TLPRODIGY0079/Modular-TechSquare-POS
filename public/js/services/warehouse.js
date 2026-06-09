@@ -112,7 +112,7 @@ export async function renderWarehouse() {
             (p) => p.active !== false,
         );
         const variants = DB.variants.filter(
-            (v) => v.active !== false && v.store_id === WAREHOUSE_ID,
+            (v) => v.is_active !== false && v.store_id === WAREHOUSE_ID,
         );
 
         // Calculate total stock and value
@@ -441,7 +441,7 @@ function renderWarehouseTabContent() {
 function renderInventoryTab() {
     const DB = getDB();
     const products = DB.products.filter((p) => p.active !== false);
-    const variants = DB.variants.filter((v) => v.active !== false && v.store_id === WAREHOUSE_ID);
+    const variants = DB.variants.filter((v) => v.is_active !== false && v.store_id === WAREHOUSE_ID);
 
     // Group variants by product
     const productMap = {};
@@ -551,9 +551,9 @@ export async function deleteWarehouseProduct(variantId) {
                 const { error: variantError } = await sb
                     .from("variants")
                     .update({
-                        active: false,
+                        is_active: false,
                         updated_at: now(),
-                        updated_by: currentUser.id,
+
                     })
                     .eq("id", variantId);
 
@@ -564,7 +564,7 @@ export async function deleteWarehouseProduct(variantId) {
                     const { error: serialError } = await sb
                         .from("serialized_items")
                         .update({
-                            active: false,
+                            is_active: false,
                             updated_at: now(),
                         })
                         .eq("variant_id", variantId);
@@ -786,19 +786,19 @@ export async function findOrCreateDestinationVariant(
     const storeSuffix = destStoreId === STORE1_ID ? "S1" : "S2";
     const newVariant = {
         product_id: sourceVariant.product_id,
-        product_name: sourceVariant.product_name,
-        category_type: sourceVariant.category_type || "phone",
+
+
         sku: `${(sourceVariant.sku || "VAR").split("-").slice(0, 2).join("-")}-${storeSuffix}-${Date.now().toString().slice(-4)}`,
         color: sourceVariant.color,
         storage: sourceVariant.storage,
         store_id: destStoreId,
-        condition: sourceVariant.condition || "brand_new",
+
         qty: 0,
-        reorder_level: sourceVariant.reorder_level || 5,
+
         cost_price: sourceVariant.cost_price || 0,
         price: sourceVariant.price || 0,
         commission_rate: sourceVariant.commission_rate || 0,
-        active: true,
+        is_active: true,
         created_at: now(),
         updated_at: now(),
     };
@@ -957,7 +957,7 @@ let addStockMode = "existing";
 export function openAddStockModal() {
     const DB = getDB();
 
-    const variants = DB.variants.filter((v) => v.active !== false && v.store_id === WAREHOUSE_ID);
+    const variants = DB.variants.filter((v) => v.is_active !== false && v.store_id === WAREHOUSE_ID);
     const products = DB.products || [];
 
     openModal(
@@ -1246,7 +1246,7 @@ export async function processAddStock(e) {
                 store_id: storeId,
 
                 qty: quantity,
-                reorder_level: 5,
+
                 cost_price: costPrice,
                 price: salePrice,
                 commission_rate: commission,
@@ -1293,7 +1293,7 @@ export function openTransferModal() {
     const DB = getDB();
 
     const variants = DB.variants.filter(
-        (v) => v.active !== false && v.store_id === WAREHOUSE_ID && v.qty > 0,
+        (v) => v.is_active !== false && v.store_id === WAREHOUSE_ID && v.qty > 0,
     );
 
     if (variants.length === 0) {
@@ -1470,7 +1470,7 @@ export function openStockRequestModal() {
     const DB = getDB();
 
     const variants = DB.variants.filter(
-        (v) => v.active !== false && v.store_id === WAREHOUSE_ID && v.qty > 0,
+        (v) => v.is_active !== false && v.store_id === WAREHOUSE_ID && v.qty > 0,
     );
 
     if (variants.length === 0) {
