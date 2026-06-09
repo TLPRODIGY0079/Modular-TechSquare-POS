@@ -1238,13 +1238,13 @@ export async function processAddStock(e) {
             const newVariant = {
                 id: uid(),
                 product_id: newProduct.id,
-                product_name: productName,
-                category_type: category,
+
+
                 sku: sku,
                 color: color || "",
                 storage: storage || "",
                 store_id: storeId,
-                condition: condition,
+
                 qty: quantity,
                 reorder_level: 5,
                 cost_price: costPrice,
