@@ -112,7 +112,7 @@ export async function renderWarehouse() {
             (p) => p.active !== false,
         );
         const variants = DB.variants.filter(
-            (v) => v.active !== false,
+            (v) => v.active !== false && v.store_id === WAREHOUSE_ID,
         );
 
         // Calculate total stock and value
@@ -441,7 +441,7 @@ function renderWarehouseTabContent() {
 function renderInventoryTab() {
     const DB = getDB();
     const products = DB.products.filter((p) => p.active !== false);
-    const variants = DB.variants.filter((v) => v.active !== false);
+    const variants = DB.variants.filter((v) => v.active !== false && v.store_id === WAREHOUSE_ID);
 
     // Group variants by product
     const productMap = {};
@@ -957,7 +957,7 @@ let addStockMode = "existing";
 export function openAddStockModal() {
     const DB = getDB();
 
-    const variants = DB.variants.filter((v) => v.active !== false);
+    const variants = DB.variants.filter((v) => v.active !== false && v.store_id === WAREHOUSE_ID);
     const products = DB.products || [];
 
     openModal(
@@ -1211,7 +1211,7 @@ export async function processAddStock(e) {
                 brand: brand || "",
                 category: category,
                 description: description || "",
-                active: true,
+
                 created_at: now(),
                 updated_at: now(),
             };
@@ -1250,7 +1250,7 @@ export async function processAddStock(e) {
                 cost_price: costPrice,
                 price: salePrice,
                 commission_rate: commission,
-                active: true,
+
                 created_at: now(),
                 updated_at: now(),
             };
@@ -1293,7 +1293,7 @@ export function openTransferModal() {
     const DB = getDB();
 
     const variants = DB.variants.filter(
-        (v) => v.active !== false && v.qty > 0,
+        (v) => v.active !== false && v.store_id === WAREHOUSE_ID && v.qty > 0,
     );
 
     if (variants.length === 0) {
@@ -1470,7 +1470,7 @@ export function openStockRequestModal() {
     const DB = getDB();
 
     const variants = DB.variants.filter(
-        (v) => v.active !== false && v.qty > 0,
+        (v) => v.active !== false && v.store_id === WAREHOUSE_ID && v.qty > 0,
     );
 
     if (variants.length === 0) {

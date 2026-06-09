@@ -350,7 +350,7 @@ async function processTradeInForm(e) {
                     price: sale_value, // Potential sale value
                     cost_price: trade_in_value, // Trade-in value (cost to acquire)
                     qty: 1,
-                    store_id: WAREHOUSE_ID,
+                    store_id: storeId, // Add to the store that processed the trade-in
                     created_at: now(),
                     updated_at: now()
                 };
