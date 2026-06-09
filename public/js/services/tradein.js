@@ -450,7 +450,6 @@ async function processTradeInForm(e) {
                 console.error("Error creating trade-in sale record:", saleError);
                 // Don't fail the whole trade-in if sale record creation fails
             }
-        }
 
         // Save to local DB with all fields
         DB.tradeIns.unshift(tradeInData);
