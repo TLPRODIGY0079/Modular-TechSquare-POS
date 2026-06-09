@@ -314,14 +314,42 @@ async function processTradeInForm(e) {
 
             // Add traded-in item as a regular variant (simplified approach)
             try {
+                // Find or create "Trade-In Devices" product
+                let tradeInProduct = DB.products.find(p => p.name === "Trade-In Devices");
+                let tradeInProductId;
+
+                if (!tradeInProduct) {
+                    // Create the product if it doesn't exist
+                    const newProduct = {
+                        id: uid(),
+                        name: "Trade-In Devices",
+                        category: "Trade-Ins",
+                        active: true,
+                        created_at: now(),
+                        updated_at: now()
+                    };
+
+                    const { error: productError } = await sb.from("products").insert([newProduct]);
+                    if (productError) throw productError;
+
+                    // Add to local DB
+                    DB.products = DB.products || [];
+                    DB.products.unshift(newProduct);
+                    tradeInProduct = newProduct;
+                    console.log("Trade-in: Created Trade-In Devices product");
+                }
+
+                tradeInProductId = tradeInProduct.id;
+
+                // Create variant for the traded-in item
                 const tradeInVariantData = {
                     id: uid(),
-                    product_id: variant ? variant.product_id : null,
-                    sku: `TRADEIN-${serial_number || tradeInData.id}`,
-                    color: tradeInData.condition,
-                    storage: "Trade-in",
-                    price: sale_value,
-                    cost_price: trade_in_value,
+                    product_id: tradeInProductId,
+                    sku: `TRADEIN-${serial_number}`,
+                    color: item_name, // Use the device name as color variant
+                    storage: tradeInData.condition,
+                    price: sale_value, // Potential sale value
+                    cost_price: trade_in_value, // Trade-in value (cost to acquire)
                     qty: 1,
                     store_id: WAREHOUSE_ID,
                     is_active: true,
@@ -336,7 +364,7 @@ async function processTradeInForm(e) {
                 DB.variants = DB.variants || [];
                 DB.variants.unshift(tradeInVariantData);
 
-                console.log("Trade-in: Added as variant:", tradeInVariantData.sku);
+                console.log("Trade-in: Added as variant:", tradeInVariantData.sku, "Device:", item_name);
             } catch (variantError) {
                 console.error("Error adding trade-in as variant:", variantError);
                 // Don't fail the whole trade-in if variant addition fails
