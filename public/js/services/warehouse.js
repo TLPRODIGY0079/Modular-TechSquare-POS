@@ -1,4 +1,4 @@
-import { getDB, getCurrentUser } from '../db.js';
+import { getDB, getCurrentUser, loadDB } from '../db.js';
 import { getSupabase } from '../supabase-client.js';
 import { $, uid, money, today, now, esc } from '../utils.js';
 import { openModal, closeModal } from '../ui/modal.js';
