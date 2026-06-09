@@ -499,7 +499,7 @@ function renderInventoryTab() {
                       <td>${variant.color || "-"} / ${variant.storage || "-"}</td>
                       <td>
                         <code style="background:var(--bg4);padding:4px 8px;border-radius:4px;font-size:12px">${variant.sku || "-"}</code>
-                        ${variant.is_trade_in ? '<span class="badge badge-blue" style="margin-left:8px">Trade-in</span>' : ''}
+                        ${variant.sku && variant.sku.startsWith('TRADEIN-') ? '<span class="badge badge-blue" style="margin-left:8px">Trade-in</span>' : ''}
                       </td>
                       <td style="text-align:center"><span class="badge ${stockBadge}">${stockQty}</span></td>
                       <td style="text-align:right;color:var(--tx2)">K${costPrice.toFixed(2)}</td>

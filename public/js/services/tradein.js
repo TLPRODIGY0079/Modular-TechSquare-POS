@@ -325,9 +325,6 @@ async function processTradeInForm(e) {
                     qty: 1,
                     store_id: WAREHOUSE_ID,
                     is_active: true,
-                    is_trade_in: true, // Flag to identify as trade-in
-                    trade_in_id: tradeInData.id,
-                    original_serial: serial_number,
                     created_at: now(),
                     updated_at: now()
                 };
