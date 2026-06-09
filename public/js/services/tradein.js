@@ -324,7 +324,6 @@ async function processTradeInForm(e) {
                         id: uid(),
                         name: "Trade-In Devices",
                         category: "Trade-Ins",
-                        active: true,
                         created_at: now(),
                         updated_at: now()
                     };
@@ -352,7 +351,6 @@ async function processTradeInForm(e) {
                     cost_price: trade_in_value, // Trade-in value (cost to acquire)
                     qty: 1,
                     store_id: WAREHOUSE_ID,
-                    is_active: true,
                     created_at: now(),
                     updated_at: now()
                 };
