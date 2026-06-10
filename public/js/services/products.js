@@ -93,6 +93,7 @@ function setupProductTabs() {
 // Render products table
 function renderProdTable() {
     const DB = getDB();
+    const user = getCurrentUser();
     const container = document.getElementById("productsContainer");
     if (!container) return;
 
@@ -107,10 +108,18 @@ function renderProdTable() {
         return;
     }
 
+    // Get current store (non-admin users see their store, admins see all or can filter)
+    const currentStoreId = user?.storeId;
+    const isAdmin = user.role === "admin" || user.role === "store_manager";
+
     container.innerHTML = `
         <div class="product-grid">
             ${DB.products.map(product => {
-                const variants = DB.variants.filter(v => v.product_id === product.id);
+                // Filter variants by store if not admin, or if admin wants store-specific view
+                const variants = DB.variants.filter(v =>
+                    v.product_id === product.id &&
+                    (isAdmin || v.store_id === currentStoreId)
+                );
                 const totalStock = variants.reduce((sum, v) => sum + (v.qty || 0), 0);
                 
                 return `
@@ -144,7 +153,13 @@ function renderLowStockTable() {
     if (!container) return;
 
     const isAdmin = user.role === "admin" || user.role === "store_manager";
-    const lowStockVariants = DB.variants.filter(v => v.qty < 10 && v.is_active);
+    const currentStoreId = user?.storeId;
+
+    const lowStockVariants = DB.variants.filter(v =>
+        v.qty < 10 &&
+        v.is_active &&
+        (isAdmin || v.store_id === currentStoreId)
+    );
 
     if (lowStockVariants.length === 0) {
         container.innerHTML = `
@@ -202,6 +217,7 @@ function renderVariants() {
     if (!container) return;
 
     const isAdmin = user.role === "admin" || user.role === "store_manager";
+    const currentStoreId = user?.storeId;
 
     container.innerHTML = `
         <table>
@@ -213,12 +229,13 @@ function renderVariants() {
                     <th>Storage</th>
                     <th>Price</th>
                     <th>Stock</th>
+                    <th>Store</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                ${DB.variants.map(variant => {
+                ${DB.variants.filter(v => isAdmin || v.store_id === currentStoreId).map(variant => {
                     const product = DB.products.find(p => p.id === variant.product_id);
                     return `
                         <tr>
@@ -228,6 +245,11 @@ function renderVariants() {
                             <td>${esc(variant.storage || '-')}</td>
                             <td>${money(variant.price)}</td>
                             <td>${variant.qty}</td>
+                            <td>
+                                <span class="badge ${variant.store_id === WAREHOUSE_ID ? 'badge-blue' : 'badge-green'}">
+                                    ${variant.store_id === WAREHOUSE_ID ? 'Warehouse' : (variant.store_id === STORE1_ID ? 'Store 1' : 'Store 2')}
+                                </span>
+                            </td>
                             <td>
                                 <span class="badge ${variant.is_active ? 'badge-green' : 'badge-gray'}">
                                     ${variant.is_active ? 'Active' : 'Inactive'}

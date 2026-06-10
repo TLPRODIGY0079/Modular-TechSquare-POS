@@ -94,10 +94,15 @@ export function renderSales() {
 // Render POS products grid
 function renderPOSProducts() {
     const DB = getDB();
+    const user = getCurrentUser();
     const container = document.getElementById("posProductsGrid");
     if (!container) return;
 
-    const activeVariants = DB.variants.filter(v => v.is_active && v.qty > 0);
+    // Get the selected store (either from dropdown or user's store)
+    const storeSelect = document.getElementById("storeSelect");
+    const selectedStoreId = storeSelect ? storeSelect.value : (user?.storeId || STORE1_ID);
+
+    const activeVariants = DB.variants.filter(v => v.is_active && v.qty > 0 && v.store_id === selectedStoreId);
 
     if (activeVariants.length === 0) {
         container.innerHTML = `
@@ -156,6 +161,14 @@ function setupPOSListeners() {
     const discountInput = document.getElementById("cartDiscount");
     if (discountInput) {
         discountInput.addEventListener("input", updateCartDisplay);
+    }
+
+    // Store selector change - re-render products for selected store
+    const storeSelect = document.getElementById("storeSelect");
+    if (storeSelect) {
+        storeSelect.addEventListener("change", () => {
+            renderPOSProducts();
+        });
     }
 }
 
