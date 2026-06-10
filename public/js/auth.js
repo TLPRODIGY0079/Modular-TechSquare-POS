@@ -166,8 +166,8 @@ async function logout() {
 
     setCurrentUser(null);
 
-    // Redirect to login page
-    window.location.replace("login.html");
+    // Reload page to show login screen
+    window.location.reload();
 }
 
 // Check if user has access to a specific page
