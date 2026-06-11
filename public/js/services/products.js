@@ -122,6 +122,9 @@ function renderProdTable() {
                 );
                 const totalStock = variants.reduce((sum, v) => sum + (v.qty || 0), 0);
                 
+                // For cashiers, only show products that have variants in their store
+                if (!isAdmin && variants.length === 0) return '';
+                
                 return `
                     <div class="product-tile" data-product-id="${product.id}">
                         <div style="display: flex; justify-content: space-between; align-items: start;">

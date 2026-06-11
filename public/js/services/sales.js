@@ -37,12 +37,18 @@ export function renderSales() {
             <div class="pos-cart">
                 <div class="cart-header">
                     <h3 style="font-size: 18px; font-weight: 700;">Current Sale</h3>
+                    ${user.role === "admin" ? `
                     <div id="cartStoreSelector">
                         <select class="form-input" id="storeSelect" style="font-size: 13px; padding: 6px 10px;">
                             <option value="${STORE1_ID}">Store 1</option>
                             <option value="${STORE2_ID}">Store 2</option>
                         </select>
                     </div>
+                    ` : `
+                    <div style="font-size: 13px; color: var(--tx2); font-weight: 600;">
+                        ${user.storeId === STORE1_ID ? "Store 1" : "Store 2"}
+                    </div>
+                    `}
                 </div>
                 
                 <div id="cartItems" class="cart-items">
@@ -98,9 +104,10 @@ function renderPOSProducts() {
     const container = document.getElementById("posProductsGrid");
     if (!container) return;
 
-    // Get the selected store (either from dropdown or user's store)
-    const storeSelect = document.getElementById("storeSelect");
-    const selectedStoreId = storeSelect ? storeSelect.value : (user?.storeId || STORE1_ID);
+    // Get the selected store (admin can choose, cashiers use their assigned store)
+    const selectedStoreId = user.role === "admin" 
+        ? (document.getElementById("storeSelect")?.value || STORE1_ID)
+        : (user?.storeId || STORE1_ID);
 
     const activeVariants = DB.variants.filter(v => v.is_active && v.qty > 0 && v.store_id === selectedStoreId);
 
@@ -163,12 +170,14 @@ function setupPOSListeners() {
         discountInput.addEventListener("input", updateCartDisplay);
     }
 
-    // Store selector change - re-render products for selected store
-    const storeSelect = document.getElementById("storeSelect");
-    if (storeSelect) {
-        storeSelect.addEventListener("change", () => {
-            renderPOSProducts();
-        });
+    // Store selector change - re-render products for selected store (admin only)
+    if (user.role === "admin") {
+        const storeSelect = document.getElementById("storeSelect");
+        if (storeSelect) {
+            storeSelect.addEventListener("change", () => {
+                renderPOSProducts();
+            });
+        }
     }
 }
 
@@ -317,7 +326,9 @@ async function completeSale() {
         return;
     }
 
-    const storeId = document.getElementById("storeSelect")?.value || user?.storeId || STORE1_ID;
+    const storeId = user.role === "admin" 
+        ? (document.getElementById("storeSelect")?.value || STORE1_ID)
+        : (user?.storeId || STORE1_ID);
     const customerName = document.getElementById("customerName")?.value.trim() || null;
     const discount = parseFloat(document.getElementById("cartDiscount")?.value) || 0;
     const paymentMethod = document.getElementById("paymentMethod")?.value || 'cash';
@@ -557,11 +568,13 @@ export function renderHistory() {
                     <i class="fas fa-search"></i>
                     <input class="search-input" id="histSearch" placeholder="Search receipt or customer...">
                 </div>
+                ${user.role === "admin" ? `
                 <select class="filter-select" id="histStore">
                     <option value="">All Stores</option>
                     <option value="${STORE1_ID}">Store 1</option>
                     <option value="${STORE2_ID}">Store 2</option>
                 </select>
+                ` : ''}
             </div>
 
             <div id="histStats" style="margin-bottom:20px"></div>
@@ -604,9 +617,11 @@ export function renderHistory() {
         searchInput.addEventListener("input", renderHistTable);
     }
 
-    const storeSelect = document.getElementById("histStore");
-    if (storeSelect) {
-        storeSelect.addEventListener("change", renderHistTable);
+    if (user.role === "admin") {
+        const storeSelect = document.getElementById("histStore");
+        if (storeSelect) {
+            storeSelect.addEventListener("change", renderHistTable);
+        }
     }
 
     const exportXlsBtn = document.getElementById("exportXlsBtn");
@@ -626,14 +641,17 @@ export function renderHistory() {
 // Get filtered sales based on current filters
 function getFilteredSales() {
     const DB = getDB();
+    const user = getCurrentUser();
     const date = document.getElementById("histDate")?.value || today();
     const q = (document.getElementById("histSearch")?.value || "").toLowerCase();
-    const sf = document.getElementById("histStore")?.value || "";
+    const sf = user.role === "admin" ? (document.getElementById("histStore")?.value || "") : (user?.storeId || "");
 
     const daySales = DB.sales.filter((s) => {
         const d = s.date_str || s.created_at?.slice(0, 10);
         if (d !== date) return false;
-        if (sf && s.store_id !== sf) return false;
+        // For cashiers, always filter by their store; for admins, use the selector if provided
+        if (user.role !== "admin" && s.store_id !== user.storeId) return false;
+        if (user.role === "admin" && sf && s.store_id !== sf) return false;
         return true;
     });
 

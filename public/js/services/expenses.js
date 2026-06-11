@@ -154,6 +154,7 @@ export function renderExpenses() {
 // Render expenses table
 function renderExpensesTable() {
     const DB = getDB();
+    const user = getCurrentUser();
     const tbody = document.getElementById("expensesTableBody");
     const totalElement = document.getElementById("totalExpenses");
     
@@ -171,7 +172,12 @@ function renderExpensesTable() {
         other: "badge-gray"
     };
 
-    if (DB.expenses.length === 0) {
+    // For cashiers, only show expenses from their store
+    const filteredExpenses = user.role === "admin"
+        ? DB.expenses
+        : DB.expenses.filter(e => e.store_id === user.storeId);
+
+    if (filteredExpenses.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="6" style="text-align: center; padding: 40px;">
@@ -188,7 +194,7 @@ function renderExpensesTable() {
     }
 
     // Sort by date descending
-    const sortedExpenses = [...DB.expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sortedExpenses = [...filteredExpenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     tbody.innerHTML = sortedExpenses.slice(0, 30).map(expense => `
         <tr>
@@ -205,8 +211,8 @@ function renderExpensesTable() {
         </tr>
     `).join('');
 
-    // Calculate total
-    const total = DB.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    // Calculate total (using filtered expenses for cashiers)
+    const total = sortedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     if (totalElement) totalElement.textContent = money(total);
 }
 
@@ -218,7 +224,9 @@ async function processExpenseForm(e) {
     const sb = getSupabase();
     const user = getCurrentUser();
     
-    const storeId = document.getElementById("expenseStore")?.value;
+    const storeId = user.role === "admin"
+        ? document.getElementById("expenseStore")?.value
+        : user.storeId;
     const category = document.getElementById("expenseCategory")?.value;
     const amount = parseFloat(document.getElementById("expenseAmount")?.value);
     const date = document.getElementById("expenseDate")?.value;

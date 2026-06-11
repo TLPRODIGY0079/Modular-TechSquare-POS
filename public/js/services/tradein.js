@@ -81,9 +81,14 @@ export function renderTradeIn() {
                                     <label>Select Product *</label>
                                     <select class="form-input" id="tradeInProductId" required>
                                         <option value="">Select Product...</option>
-                                        ${DB.products.filter(p => p.active !== false).map(p =>
-                                            `<option value="${p.id}">${p.name}</option>`
-                                        ).join('')}
+                                        ${DB.products.filter(p => p.active !== false).map(p => {
+                                            // For cashiers, only show products that have variants in their store
+                                            const hasVariantsInStore = user.role === "admin" 
+                                                ? true 
+                                                : DB.variants.some(v => v.product_id === p.id && v.store_id === user.storeId && v.active !== false);
+                                            if (!hasVariantsInStore) return '';
+                                            return `<option value="${p.id}">${p.name}</option>`;
+                                        }).join('')}
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -136,29 +141,32 @@ export function renderTradeIn() {
                             <tbody id="recentTradeIns">
                                 ${DB.tradeIns.length === 0 ?
                                     `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tx3)">No trade-ins yet</td></tr>` :
-                                    DB.tradeIns.slice(0, 10).map(t => {
-                                        return `
-                                            <tr>
-                                                <td>${new Date(t.created_at).toLocaleDateString()}</td>
-                                                <td>
-                                                    <strong>${t.item_name}</strong>
-                                                    <div style="font-size:12px;color:var(--tx2)">${t.serial_number || '-'}</div>
-                                                </td>
-                                                <td>
-                                                    <strong>${t.new_device_name || 'New Device'}</strong>
-                                                    <div style="font-size:12px;color:var(--tx2)">${t.new_device_variant || ''}</div>
-                                                </td>
-                                                <td style="font-weight:700;color:var(--gn)">${money(t.sale_value - t.trade_in_value)}</td>
-                                                <td>
-                                                    <span class="badge ${
-                                                        t.status === 'completed' ? 'badge-green' :
-                                                        t.status === 'approved' ? 'badge-blue' :
-                                                        t.status === 'rejected' ? 'badge-red' : 'badge-orange'
-                                                    }">${t.status}</span>
-                                                </td>
-                                            </tr>
-                                        `;
-                                    }).join('')
+                                    DB.tradeIns
+                                        .filter(t => user.role === "admin" || t.store_id === user.storeId)
+                                        .slice(0, 10)
+                                        .map(t => {
+                                            return `
+                                                <tr>
+                                                    <td>${new Date(t.created_at).toLocaleDateString()}</td>
+                                                    <td>
+                                                        <strong>${t.item_name}</strong>
+                                                        <div style="font-size:12px;color:var(--tx2)">${t.serial_number || '-'}</div>
+                                                    </td>
+                                                    <td>
+                                                        <strong>${t.new_device_name || 'New Device'}</strong>
+                                                        <div style="font-size:12px;color:var(--tx2)">${t.new_device_variant || ''}</div>
+                                                    </td>
+                                                    <td style="font-weight:700;color:var(--gn)">${money(t.sale_value - t.trade_in_value)}</td>
+                                                    <td>
+                                                        <span class="badge ${
+                                                            t.status === 'completed' ? 'badge-green' :
+                                                            t.status === 'approved' ? 'badge-blue' :
+                                                            t.status === 'rejected' ? 'badge-red' : 'badge-orange'
+                                                        }">${t.status}</span>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }).join('')
                                 }
                             </tbody>
                         </table>
@@ -199,6 +207,7 @@ export function renderTradeIn() {
 // Update trade-in variants based on selected product
 function updateTradeInVariants() {
     const DB = getDB();
+    const user = getCurrentUser();
     const productId = document.getElementById("tradeInProductId")?.value;
     const variantSelect = document.getElementById("tradeInVariantId");
 
@@ -209,7 +218,12 @@ function updateTradeInVariants() {
         return;
     }
 
-    const variants = DB.variants.filter(v => v.product_id === productId && v.active !== false);
+    // For cashiers, only show variants from their store
+    const variants = DB.variants.filter(v => 
+        v.product_id === productId && 
+        v.active !== false &&
+        (user.role === "admin" || v.store_id === user.storeId)
+    );
     variantSelect.innerHTML = variants.length > 0
         ? variants.map(v => `<option value="${v.id}" data-price="${v.price || 0}" data-name="${v.product_name || ''}">
             ${v.color || ''} ${v.storage || ''} - ${money(v.price || 0)}
@@ -260,7 +274,9 @@ async function processTradeInForm(e) {
     const sb = getSupabase();
     const user = getCurrentUser();
     
-    const storeId = document.getElementById("tradeInStore")?.value;
+    const storeId = user.role === "admin" 
+        ? document.getElementById("tradeInStore")?.value
+        : user.storeId;
     const item_name = document.getElementById("tradeInItemName")?.value.trim();
     const serial_number = document.getElementById("tradeInSerialNumber")?.value.trim();
     const condition = document.getElementById("tradeInCondition")?.value;

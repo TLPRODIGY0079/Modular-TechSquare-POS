@@ -15,12 +15,20 @@ export function renderDashboard() {
     if (!mainContent) return;
 
     // Calculate dashboard metrics
-    const todaySales = DB.sales.filter(s => s.date_str === today());
+    // For cashiers, only show their store's data; for admins, show all stores
+    const userStoreId = user?.storeId;
+    const todaySales = user.role === "admin" 
+        ? DB.sales.filter(s => s.date_str === today())
+        : DB.sales.filter(s => s.date_str === today() && s.store_id === userStoreId);
     const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
     const totalProfit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
     const transactions = todaySales.length;
-    const lowStockCount = DB.variants.filter(v => v.qty < 10 && v.is_active).length;
-    const activeLaybys = DB.laybys.filter(l => l.status === 'active').length;
+    const lowStockCount = user.role === "admin"
+        ? DB.variants.filter(v => v.qty < 10 && v.is_active).length
+        : DB.variants.filter(v => v.qty < 10 && v.is_active && v.store_id === userStoreId).length;
+    const activeLaybys = user.role === "admin"
+        ? DB.laybys.filter(l => l.status === 'active').length
+        : DB.laybys.filter(l => l.status === 'active' && l.store_id === userStoreId).length;
 
     mainContent.innerHTML = `
         <div style="margin-bottom: 24px;">
@@ -132,7 +140,11 @@ export function renderDashboard() {
 // Helper functions for Financial Summary
 function calculateCOGS() {
     const DB = getDB();
-    const todaySales = DB.sales.filter(s => s.date_str === today());
+    const user = getCurrentUser();
+    const userStoreId = user?.storeId;
+    const todaySales = user.role === "admin"
+        ? DB.sales.filter(s => s.date_str === today())
+        : DB.sales.filter(s => s.date_str === today() && s.store_id === userStoreId);
     return todaySales.reduce((sum, s) => {
         const quantity = Number(s.quantity || 1);
         const costPrice = Number(s.cost_price || 0);
@@ -142,23 +154,37 @@ function calculateCOGS() {
 
 function calculateExpenses() {
     const DB = getDB();
-    const todayExpenses = (DB.expenses || []).filter(e => e.date === today());
+    const user = getCurrentUser();
+    const userStoreId = user?.storeId;
+    const todayExpenses = user.role === "admin"
+        ? (DB.expenses || []).filter(e => e.date === today())
+        : (DB.expenses || []).filter(e => e.date === today() && e.store_id === userStoreId);
     return todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 }
 
 function calculateNetProfit() {
     const DB = getDB();
-    const todaySales = DB.sales.filter(s => s.date_str === today());
+    const user = getCurrentUser();
+    const userStoreId = user?.storeId;
+    const todaySales = user.role === "admin"
+        ? DB.sales.filter(s => s.date_str === today())
+        : DB.sales.filter(s => s.date_str === today() && s.store_id === userStoreId);
     const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
     const totalProfit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
-    const todayExpenses = (DB.expenses || []).filter(e => e.date === today());
+    const todayExpenses = user.role === "admin"
+        ? (DB.expenses || []).filter(e => e.date === today())
+        : (DB.expenses || []).filter(e => e.date === today() && e.store_id === userStoreId);
     const totalExpenses = todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     return totalProfit - totalExpenses;
 }
 
 function calculateProfitMargin() {
     const DB = getDB();
-    const todaySales = DB.sales.filter(s => s.date_str === today());
+    const user = getCurrentUser();
+    const userStoreId = user?.storeId;
+    const todaySales = user.role === "admin"
+        ? DB.sales.filter(s => s.date_str === today())
+        : DB.sales.filter(s => s.date_str === today() && s.store_id === userStoreId);
     const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
     const totalProfit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
     if (totalRevenue === 0) return 0;

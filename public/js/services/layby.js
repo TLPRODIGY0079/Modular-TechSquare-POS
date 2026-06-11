@@ -53,7 +53,14 @@ export function renderLayby() {
 // Render layby table
 function renderLaybyTable(filter) {
     const DB = getDB();
+    const user = getCurrentUser();
     let laybys = DB.laybys || [];
+    
+    // For cashiers, only show laybys from their store
+    if (user.role !== "admin") {
+        laybys = laybys.filter((l) => l.store_id === user.storeId);
+    }
+    
     if (filter === "active")
         laybys = laybys.filter((l) => l.status === "active");
     if (filter === "completed")
