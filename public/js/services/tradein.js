@@ -367,6 +367,7 @@ async function processTradeInForm(e) {
                     cost_price: trade_in_value, // Trade-in value (cost to acquire)
                     qty: 1,
                     store_id: storeId, // Add to the store that processed the trade-in
+                    is_active: true, // Make it available for sale
                     created_at: now(),
                     updated_at: now()
                 };
@@ -379,8 +380,10 @@ async function processTradeInForm(e) {
                 DB.variants.unshift(tradeInVariantData);
 
                 console.log("Trade-in: Added as variant:", tradeInVariantData.sku, "Device:", item_name);
+                toast("Trade-in device added to inventory", "success");
             } catch (variantError) {
                 console.error("Error adding trade-in as variant:", variantError);
+                toast("Trade-in completed but device not added to inventory: " + variantError.message, "error");
                 // Don't fail the whole trade-in if variant addition fails
             }
         }
@@ -418,7 +421,7 @@ async function processTradeInForm(e) {
                 const receiptNumber = "TRDIN-" + String((DB.sales || []).length + 1).padStart(5, "0");
                 const saleData = {
                     id: uid(),
-                    store_id: user?.storeId || STORE1_ID,
+                    store_id: storeId,
                     user_id: user?.id,
                     user_name: user?.name,
                     receipt_number: receiptNumber,
@@ -455,7 +458,7 @@ async function processTradeInForm(e) {
                             id: uid(),
                             agent_id: user?.id,
                             agent_name: user?.name,
-                            store_id: user?.storeId || STORE1_ID,
+                            store_id: storeId,
                             receipt_number: receiptNumber,
                             total_amount: sale_value - trade_in_value,
                             commission_rate: variant.commission_rate,
