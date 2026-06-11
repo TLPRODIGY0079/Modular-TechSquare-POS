@@ -315,6 +315,21 @@ export async function renderAgents() {
             agents = DB.agents || [];
         }
 
+        // Load agent assignments from database
+        let agentAssignments = [];
+        try {
+            if (sb) {
+                const { data, error } = await sb.from("agent_assignments").select("*").order("created_at", { ascending: false });
+                if (error) throw error;
+                agentAssignments = data || [];
+            }
+        } catch (err) {
+            console.error("Error loading agent assignments from Supabase:", err);
+            // Fallback to local data if available
+            agentAssignments = DB.agentAssignments || [];
+        }
+        DB.agentAssignments = agentAssignments;
+
         // Calculate statistics
         const totalAgents = agents.length;
         const activeAgents = agents.filter(a => a.active !== false).length;
@@ -421,8 +436,14 @@ export async function renderAgents() {
                         `}
                     </div>
                 </div>
+
+                <!-- Agent Assignments Section -->
+                <div id="agentAssignmentsContainer" style="margin-top:24px"></div>
             </div>
         `;
+
+        // Render assignments section
+        renderAgentAssignments();
 
         // Setup search functionality
         const searchInput = document.getElementById("agentSearch");
@@ -838,6 +859,449 @@ function log(message) {
     console.log(`[AgentService] ${message}`);
 }
 
+// ============================================================================
+// AGENT ASSIGNMENT FUNCTIONS (CONSIGNMENT)
+// ============================================================================
+
+/**
+ * Open modal to assign product to agent
+ */
+function openAssignProductModal() {
+    const DB = getDB();
+    const currentUser = getCurrentUser();
+
+    // Get agents for the user's store
+    const agents = (DB.agents || []).filter(a => 
+        a.active !== false && 
+        (currentUser.role === "admin" || a.store_id === currentUser.storeId)
+    );
+
+    // Get variants available in the user's store
+    const variants = DB.variants.filter(v => 
+        v.is_active && 
+        v.qty > 0 && 
+        (currentUser.role === "admin" || v.store_id === currentUser.storeId)
+    );
+
+    const html = `
+        <form id="assignProductForm">
+            <div class="form-group">
+                <label>Agent *</label>
+                <select class="form-input" id="assignAgent" required>
+                    <option value="">Select Agent...</option>
+                    ${agents.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Product *</label>
+                <select class="form-input" id="assignVariant" required>
+                    <option value="">Select Product...</option>
+                    ${variants.map(v => {
+                        const product = DB.products.find(p => p.id === v.product_id);
+                        return `<option value="${v.id}" data-price="${v.price || 0}" data-product="${esc(product?.name || '')}" data-sku="${esc(v.sku || '')}" data-variant="${esc(`${v.color || ''} ${v.storage || ''}`)}">
+                            ${esc(product?.name || 'Unknown')} - ${esc(v.color || '')} ${esc(v.storage || '')} - ${money(v.price || 0)}
+                        </option>`;
+                    }).join('')}
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Agreed Amount (K) *</label>
+                    <input type="number" class="form-input" id="assignAmount" required min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Due Date *</label>
+                    <input type="date" class="form-input" id="assignDueDate" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Quantity *</label>
+                <input type="number" class="form-input" id="assignQty" value="1" min="1" required>
+            </div>
+        </form>
+    `;
+
+    openModal(
+        "Assign Product to Agent",
+        html,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="confirmAssignBtn">
+                <i class="fas fa-check"></i> Assign Product
+            </button>
+        `
+    );
+
+    // Set default due date to 7 days from now
+    const dueDateInput = document.getElementById("assignDueDate");
+    if (dueDateInput) {
+        const defaultDate = new Date();
+        defaultDate.setDate(defaultDate.getDate() + 7);
+        dueDateInput.value = defaultDate.toISOString().split('T')[0];
+    }
+
+    // Handle variant selection to auto-fill agreed amount
+    const variantSelect = document.getElementById("assignVariant");
+    const amountInput = document.getElementById("assignAmount");
+    if (variantSelect && amountInput) {
+        variantSelect.addEventListener("change", () => {
+            const selectedOption = variantSelect.selectedOptions[0];
+            if (selectedOption) {
+                amountInput.value = selectedOption.dataset.price || '';
+            }
+        });
+    }
+
+    const confirmBtn = document.getElementById("confirmAssignBtn");
+    if (confirmBtn) {
+        confirmBtn.addEventListener("click", assignProductToAgent);
+    }
+}
+
+/**
+ * Assign product to agent
+ */
+async function assignProductToAgent() {
+    const DB = getDB();
+    const sb = getSupabase();
+    const currentUser = getCurrentUser();
+
+    const agentId = document.getElementById("assignAgent").value;
+    const variantId = document.getElementById("assignVariant").value;
+    const agreedAmount = parseFloat(document.getElementById("assignAmount").value) || 0;
+    const dueDate = document.getElementById("assignDueDate").value;
+    const qty = parseInt(document.getElementById("assignQty").value) || 1;
+
+    if (!agentId || !variantId || !agreedAmount || !dueDate) {
+        toast("Please fill in all required fields", "error");
+        return;
+    }
+
+    const variant = DB.variants.find(v => v.id === variantId);
+    const product = DB.products.find(p => p.id === variant?.product_id);
+    const agent = DB.agents?.find(a => a.id === agentId);
+
+    if (!variant || !product || !agent) {
+        toast("Variant, product, or agent not found", "error");
+        return;
+    }
+
+    if (variant.qty < qty) {
+        toast(`Insufficient stock. Only ${variant.qty} available.`, "error");
+        return;
+    }
+
+    try {
+        const storeId = agent.store_id || currentUser.storeId || STORE1_ID;
+
+        // Create assignment record
+        const assignmentData = {
+            id: uid(),
+            agent_id: agentId,
+            store_id: storeId,
+            product_id: product.id,
+            variant_id: variantId,
+            sku: variant.sku,
+            product_name: product.name,
+            variant_label: `${variant.color || ''} ${variant.storage || ''}`.trim(),
+            qty: qty,
+            agreed_amount: agreedAmount,
+            date_taken: today(),
+            due_date: dueDate,
+            status: 'active',
+            created_at: now(),
+            updated_at: now()
+        };
+
+        // Save to Supabase
+        if (sb) {
+            const { error: assignError } = await sb.from("agent_assignments").insert([assignmentData]);
+            if (assignError) throw assignError;
+        }
+
+        // Save to local DB
+        if (!DB.agentAssignments) DB.agentAssignments = [];
+        DB.agentAssignments.unshift(assignmentData);
+
+        // Deduct from inventory
+        const newQty = variant.qty - qty;
+        const variantUpdate = {
+            qty: newQty,
+            updated_at: now()
+        };
+
+        if (sb) {
+            const { error: variantError } = await sb.from("variants").update(variantUpdate).eq("id", variantId);
+            if (variantError) throw variantError;
+        }
+
+        // Update local variant
+        const variantIndex = DB.variants.findIndex(v => v.id === variantId);
+        if (variantIndex !== -1) {
+            DB.variants[variantIndex].qty = newQty;
+        }
+
+        toast(`Successfully assigned ${qty}x ${product.name} to ${agent.name}`, "success");
+        closeModal();
+        renderAgents(); // Refresh to show new assignment
+    } catch (error) {
+        console.error("Error assigning product to agent:", error);
+        toast("Failed to assign product: " + error.message, "error");
+    }
+}
+
+/**
+ * Extend due date for assignment
+ */
+async function extendAgentDueDate(assignmentId) {
+    const DB = getDB();
+    const sb = getSupabase();
+
+    const assignment = DB.agentAssignments?.find(a => a.id === assignmentId);
+    if (!assignment) {
+        toast("Assignment not found", "error");
+        return;
+    }
+
+    const newDueDate = prompt("Enter new due date (YYYY-MM-DD):", assignment.due_date);
+    if (!newDueDate) return;
+
+    try {
+        const updates = {
+            extended_due_date: newDueDate,
+            status: 'extended',
+            updated_at: now()
+        };
+
+        if (sb) {
+            const { error } = await sb.from("agent_assignments").update(updates).eq("id", assignmentId);
+            if (error) throw error;
+        }
+
+        // Update local DB
+        const index = DB.agentAssignments.findIndex(a => a.id === assignmentId);
+        if (index !== -1) {
+            DB.agentAssignments[index] = { ...DB.agentAssignments[index], ...updates };
+        }
+
+        toast("Due date extended successfully", "success");
+        renderAgentAssignments();
+    } catch (error) {
+        console.error("Error extending due date:", error);
+        toast("Failed to extend due date: " + error.message, "error");
+    }
+}
+
+/**
+ * Complete agent assignment
+ */
+async function completeAgentAssignment(assignmentId) {
+    const DB = getDB();
+    const sb = getSupabase();
+    const currentUser = getCurrentUser();
+
+    const assignment = DB.agentAssignments?.find(a => a.id === assignmentId);
+    if (!assignment) {
+        toast("Assignment not found", "error");
+        return;
+    }
+
+    if (!confirm(`Mark this assignment as completed? This will record a sale of ${money(assignment.agreed_amount)}.`)) {
+        return;
+    }
+
+    try {
+        // Create sales record for the completed assignment
+        const receiptNumber = "AGENT-" + String((DB.sales || []).length + 1).padStart(5, "0");
+        const saleData = {
+            id: uid(),
+            store_id: assignment.store_id,
+            user_id: currentUser.id,
+            user_name: currentUser.name,
+            receipt_number: receiptNumber,
+            product_name: assignment.product_name,
+            sku: assignment.sku,
+            variant_label: assignment.variant_label,
+            quantity: assignment.qty,
+            unit_price: assignment.agreed_amount / assignment.qty,
+            cost_price: 0, // Cost price unknown for agent sales
+            subtotal: assignment.agreed_amount,
+            discount: 0,
+            total: assignment.agreed_amount,
+            profit: assignment.agreed_amount, // Assume full amount is profit
+            commission_rate: 0,
+            payment_method: "agent",
+            customer_name: `Agent: ${assignment.agent_id}`,
+            identifier: assignment.id,
+            date_str: today(),
+            created_at: now()
+        };
+
+        // Save sale to Supabase
+        if (sb) {
+            const { error: saleError } = await sb.from("sales").insert([saleData]);
+            if (saleError) throw saleError;
+        }
+
+        // Save sale to local DB
+        if (!DB.sales) DB.sales = [];
+        DB.sales.unshift(saleData);
+
+        // Update assignment status
+        const updates = {
+            status: 'completed',
+            completed_at: now(),
+            payment_date: today(),
+            updated_at: now()
+        };
+
+        if (sb) {
+            const { error: assignError } = await sb.from("agent_assignments").update(updates).eq("id", assignmentId);
+            if (assignError) throw assignError;
+        }
+
+        // Update local assignment
+        const index = DB.agentAssignments.findIndex(a => a.id === assignmentId);
+        if (index !== -1) {
+            DB.agentAssignments[index] = { ...DB.agentAssignments[index], ...updates };
+        }
+
+        toast("Assignment completed and sale recorded", "success");
+        renderAgentAssignments();
+    } catch (error) {
+        console.error("Error completing assignment:", error);
+        toast("Failed to complete assignment: " + error.message, "error");
+    }
+}
+
+/**
+ * Render agent assignments section
+ */
+function renderAgentAssignments() {
+    const DB = getDB();
+    const currentUser = getCurrentUser();
+    const container = document.getElementById("agentAssignmentsContainer");
+    if (!container) return;
+
+    // Filter assignments by user's store
+    const assignments = (DB.agentAssignments || []).filter(a => 
+        currentUser.role === "admin" || a.store_id === currentUser.storeId
+    );
+
+    const activeAssignments = assignments.filter(a => a.status !== 'completed');
+    const completedAssignments = assignments.filter(a => a.status === 'completed');
+
+    container.innerHTML = `
+        <div class="card">
+            <div class="card-header">
+                <h3>Active Assignments</h3>
+                <button class="btn btn-sm btn-primary" onclick="window.agentsService.openAssignProductModal()">
+                    <i class="fas fa-plus"></i> Assign Product
+                </button>
+            </div>
+            <div class="card-body np">
+                ${activeAssignments.length === 0 ? `
+                    <div style="padding:40px;text-align:center;color:var(--tx2)">
+                        <i class="fas fa-inbox" style="font-size:32px;margin-bottom:12px;opacity:0.3"></i>
+                        <p>No active assignments</p>
+                    </div>
+                ` : `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Agent</th>
+                                <th>Date Taken</th>
+                                <th>Due Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${activeAssignments.map(a => {
+                                const agent = DB.agents?.find(ag => ag.id === a.agent_id);
+                                return `
+                                    <tr>
+                                        <td>
+                                            <strong>${esc(a.product_name)}</strong>
+                                            <div style="font-size:12px;color:var(--tx2)">${esc(a.variant_label)}</div>
+                                        </td>
+                                        <td>${esc(agent?.name || 'Unknown')}</td>
+                                        <td>${a.date_taken}</td>
+                                        <td>${a.extended_due_date || a.due_date}</td>
+                                        <td style="font-weight:700">${money(a.agreed_amount)}</td>
+                                        <td>
+                                            <span class="badge ${a.status === 'extended' ? 'badge-orange' : 'badge-green'}">
+                                                ${a.status === 'extended' ? 'Extended' : 'Active'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline" onclick="window.agentsService.extendAgentDueDate('${a.id}')" title="Extend Due Date">
+                                                <i class="fas fa-clock"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-primary" onclick="window.agentsService.completeAgentAssignment('${a.id}')" title="Complete Assignment">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+            <div class="card-header">
+                <h3>Completed Assignments</h3>
+            </div>
+            <div class="card-body np">
+                ${completedAssignments.length === 0 ? `
+                    <div style="padding:40px;text-align:center;color:var(--tx2)">
+                        <i class="fas fa-check-circle" style="font-size:32px;margin-bottom:12px;opacity:0.3"></i>
+                        <p>No completed assignments</p>
+                    </div>
+                ` : `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Agent</th>
+                                <th>Date Taken</th>
+                                <th>Completed</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${completedAssignments.map(a => {
+                                const agent = DB.agents?.find(ag => ag.id === a.agent_id);
+                                return `
+                                    <tr>
+                                        <td>
+                                            <strong>${esc(a.product_name)}</strong>
+                                            <div style="font-size:12px;color:var(--tx2)">${esc(a.variant_label)}</div>
+                                        </td>
+                                        <td>${esc(agent?.name || 'Unknown')}</td>
+                                        <td>${a.date_taken}</td>
+                                        <td>${a.completed_at ? new Date(a.completed_at).toLocaleDateString() : '-'}</td>
+                                        <td style="font-weight:700">${money(a.agreed_amount)}</td>
+                                        <td>
+                                            <span class="badge badge-green">Completed</span>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `}
+            </div>
+        </div>
+    `;
+}
+
 // Export service functions for global access
 const agentsService = {
     renderAgents,
@@ -851,7 +1315,12 @@ const agentsService = {
     saveAgent,
     viewAgentDetails,
     editAgent,
-    updateAgent
+    updateAgent,
+    openAssignProductModal,
+    assignProductToAgent,
+    extendAgentDueDate,
+    completeAgentAssignment,
+    renderAgentAssignments
 };
 
 // Make functions available globally for onclick handlers
