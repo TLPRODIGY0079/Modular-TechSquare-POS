@@ -141,6 +141,8 @@ function renderPOSProducts() {
 
 // Setup POS event listeners
 function setupPOSListeners() {
+    const user = getCurrentUser();
+    
     // Search functionality
     const searchInput = document.getElementById("posSearch");
     if (searchInput) {
