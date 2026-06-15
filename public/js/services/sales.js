@@ -368,13 +368,30 @@ async function completeSale() {
                 created_at: now()
             };
 
-            // Save to Supabase
+            // Save to Supabase (if online)
+            let supabaseSuccess = false;
             if (sb) {
-                const { error } = await sb.from("sales").insert([saleData]);
-                if (error) throw error;
+                try {
+                    const { error } = await sb.from("sales").insert([saleData]);
+                    if (error) throw error;
+                    supabaseSuccess = true;
+                } catch (supabaseError) {
+                    console.error("Supabase save failed, saving locally:", supabaseError);
+                    // Save to IndexedDB for offline sync
+                    const offlineDB = window.offlineDB;
+                    if (offlineDB) {
+                        try {
+                            await offlineDB.put('sales', saleData);
+                            await offlineDB.queueOperation('create', 'sales', saleData, saleData.id);
+                            console.log("Sale saved to offline DB for sync");
+                        } catch (offlineError) {
+                            console.error("Offline DB save failed:", offlineError);
+                        }
+                    }
+                }
             }
 
-            // Save to local DB
+            // Save to local DB (always, regardless of Supabase success)
             DB.sales.unshift(saleData);
 
             // Update variant stock
@@ -386,11 +403,26 @@ async function completeSale() {
                     updated_at: now()
                 };
 
+                // Try Supabase update (if online)
                 if (sb) {
-                    const { error } = await sb.from("variants").update(variantUpdate).eq("id", variant.id);
-                    if (error) console.error("Variant update error:", error);
+                    try {
+                        const { error } = await sb.from("variants").update(variantUpdate).eq("id", variant.id);
+                        if (error) throw error;
+                    } catch (supabaseError) {
+                        console.error("Supabase variant update failed, queueing for sync:", supabaseError);
+                        // Queue for offline sync
+                        const offlineDB = window.offlineDB;
+                        if (offlineDB) {
+                            try {
+                                await offlineDB.queueOperation('update', 'variants', variantUpdate, variant.id);
+                            } catch (offlineError) {
+                                console.error("Failed to queue variant update:", offlineError);
+                            }
+                        }
+                    }
                 }
 
+                // Always update local DB
                 variant.qty = newQty;
             }
         }

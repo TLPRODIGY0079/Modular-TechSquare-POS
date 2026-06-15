@@ -21,6 +21,8 @@ let DB = {
     laybys: [],
     laybyPayments: [],
     commissionRecords: [],
+    agents: [],
+    agentAssignments: []
 };
 
 // Offline Mode State
@@ -143,6 +145,7 @@ async function loadDB() {
                 DB.laybyPayments = (await offlineDB.getAll("layby_payments")) || [];
                 DB.commissionRecords = (await offlineDB.getAll("commission_records")) || [];
                 DB.agents = (await offlineDB.getAll("agents")) || [];
+                DB.agentAssignments = (await offlineDB.getAll("agent_assignments")) || [];
 
                 log("Loaded from IndexedDB:", {
                     products: DB.products.length,

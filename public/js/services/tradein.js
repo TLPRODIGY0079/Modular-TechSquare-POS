@@ -323,38 +323,81 @@ async function processTradeInForm(e) {
         delete dbData._variant_id;
         delete dbData._variant;
 
-        // Save to Supabase
+        // Save to Supabase (if online)
         if (sb) {
-            const { error } = await sb.from("trade_in_transactions").insert([dbData]);
-            if (error) throw error;
-
-            // Add traded-in item as a regular variant (simplified approach)
             try {
-                // Find or create "Trade-In Devices" product
-                let tradeInProduct = DB.products.find(p => p.name === "Trade-In Devices");
-                let tradeInProductId;
+                const { error } = await sb.from("trade_in_transactions").insert([dbData]);
+                if (error) throw error;
+            } catch (supabaseError) {
+                console.error("Supabase trade-in save failed, saving locally:", supabaseError);
+                // Save to IndexedDB for offline sync
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    try {
+                        await offlineDB.put('trade_in_transactions', dbData);
+                        await offlineDB.queueOperation('create', 'trade_in_transactions', dbData, dbData.id);
+                        console.log("Trade-in saved to offline DB for sync");
+                    } catch (offlineError) {
+                        console.error("Offline DB save failed:", offlineError);
+                        throw offlineError; // Re-throw to handle in main catch block
+                    }
+                }
+            }
+        }
 
-                if (!tradeInProduct) {
-                    // Create the product if it doesn't exist
-                    const newProduct = {
-                        id: uid(),
-                        name: "Trade-In Devices",
-                        category: "Trade-Ins",
-                        created_at: now(),
-                        updated_at: now()
-                    };
+        // Save to local DB (always, regardless of Supabase success)
+        DB.tradeIns = DB.tradeIns || [];
+        DB.tradeIns.unshift(tradeInData);
 
-                    const { error: productError } = await sb.from("products").insert([newProduct]);
-                    if (productError) throw productError;
+        // Add traded-in item as a regular variant (simplified approach)
+        try {
+            // Find or create "Trade-In Devices" product
+            let tradeInProduct = DB.products.find(p => p.name === "Trade-In Devices");
+            let tradeInProductId;
 
-                    // Add to local DB
+            if (!tradeInProduct) {
+                // Only try to create product if online or if we can save locally
+                const newProduct = {
+                    id: uid(),
+                    name: "Trade-In Devices",
+                    category: "Trade-Ins",
+                    created_at: now(),
+                    updated_at: now()
+                };
+
+                if (sb) {
+                    try {
+                        const { error: productError } = await sb.from("products").insert([newProduct]);
+                        if (productError) throw productError;
+
+                        // Add to local DB
+                        DB.products = DB.products || [];
+                        DB.products.unshift(newProduct);
+                        tradeInProduct = newProduct;
+                        console.log("Trade-in: Created Trade-In Devices product");
+                    } catch (productError) {
+                        console.error("Product creation failed, saving locally:", productError);
+                        // Save product to offline DB
+                        const offlineDB = window.offlineDB;
+                        if (offlineDB) {
+                            await offlineDB.put('products', newProduct);
+                            await offlineDB.queueOperation('create', 'products', newProduct, newProduct.id);
+                        }
+                        // Still add to local DB
+                        DB.products = DB.products || [];
+                        DB.products.unshift(newProduct);
+                        tradeInProduct = newProduct;
+                    }
+                } else {
+                    // Offline mode - add to local DB only
                     DB.products = DB.products || [];
                     DB.products.unshift(newProduct);
                     tradeInProduct = newProduct;
-                    console.log("Trade-in: Created Trade-In Devices product");
+                    console.log("Trade-in: Created Trade-In Devices product (offline)");
                 }
+            }
 
-                tradeInProductId = tradeInProduct.id;
+            tradeInProductId = tradeInProduct.id;
 
                 // Create variant for the traded-in item
                 const tradeInVariantData = {
@@ -372,10 +415,22 @@ async function processTradeInForm(e) {
                     updated_at: now()
                 };
 
-                const { error: variantError } = await sb.from("variants").insert([tradeInVariantData]);
-                if (variantError) throw variantError;
+                if (sb) {
+                    try {
+                        const { error: variantError } = await sb.from("variants").insert([tradeInVariantData]);
+                        if (variantError) throw variantError;
+                    } catch (variantError) {
+                        console.error("Supabase variant creation failed, saving locally:", variantError);
+                        // Save to offline DB
+                        const offlineDB = window.offlineDB;
+                        if (offlineDB) {
+                            await offlineDB.put('variants', tradeInVariantData);
+                            await offlineDB.queueOperation('create', 'variants', tradeInVariantData, tradeInVariantData.id);
+                        }
+                    }
+                }
 
-                // Also add to local DB
+                // Always add to local DB
                 DB.variants = DB.variants || [];
                 DB.variants.unshift(tradeInVariantData);
 
@@ -386,112 +441,147 @@ async function processTradeInForm(e) {
                 toast("Trade-in completed but device not added to inventory: " + variantError.message, "error");
                 // Don't fail the whole trade-in if variant addition fails
             }
+
+        // Deduct the new device variant from inventory (like layby does)
+        if (variant) {
+            try {
+                const newQty = Math.max(0, (variant.qty || 0) - 1);
+                const variantUpdate = {
+                    qty: newQty,
+                    updated_at: now(),
+                };
+
+                if (sb) {
+                    try {
+                        const { error: vErr } = await sb
+                            .from("variants")
+                            .update(variantUpdate)
+                            .eq("id", variant.id);
+                        if (vErr) throw vErr;
+                    } catch (supabaseError) {
+                        console.error("Supabase variant update failed, queueing for sync:", supabaseError);
+                        // Queue for offline sync
+                        const offlineDB = window.offlineDB;
+                        if (offlineDB) {
+                            await offlineDB.queueOperation('update', 'variants', variantUpdate, variant.id);
+                        }
+                    }
+                }
+
+                // Always update in-memory
+                const vIdx = DB.variants.findIndex((x) => x.id === variant.id);
+                if (vIdx !== -1) {
+                    DB.variants[vIdx].qty = newQty;
+                }
+                console.log("Trade-in: Deducted 1 from variant inventory, new qty:", newQty);
+            } catch (variantError) {
+                console.error("Error deducting variant inventory:", variantError);
+                // Don't fail the whole trade-in if variant deduction fails
+            }
         }
 
-            // Deduct the new device variant from inventory (like layby does)
-            if (variant) {
+        // Create sales record for trade-in (like layby does)
+        try {
+            const receiptNumber = "TRDIN-" + String((DB.sales || []).length + 1).padStart(5, "0");
+            const saleData = {
+                id: uid(),
+                store_id: storeId,
+                user_id: user?.id,
+                user_name: user?.name,
+                receipt_number: receiptNumber,
+                product_name: product?.name || tradeInData.item_name,
+                sku: variant?.sku || "TRADEIN",
+                variant_label: variant
+                    ? `${variant.color || ""} ${variant.storage || ""}`.trim()
+                    : "",
+                quantity: 1,
+                unit_price: sale_value,
+                cost_price: trade_in_value,
+                subtotal: sale_value,
+                discount: trade_in_value, // Trade-in value acts as discount
+                total: sale_value - trade_in_value,
+                profit: (sale_value - trade_in_value) - trade_in_value,
+                commission_rate: variant?.commission_rate || 0,
+                payment_method: "trade_in",
+                customer_name: customer_name || "Trade-in Customer",
+                identifier: serial_number,
+                date_str: today(),
+                created_at: now(),
+            };
+
+            if (sb) {
                 try {
-                    const newQty = Math.max(0, (variant.qty || 0) - 1);
-                    const variantUpdate = {
-                        qty: newQty,
-                        updated_at: now(),
-                    };
-                    const { error: vErr } = await sb
-                        .from("variants")
-                        .update(variantUpdate)
-                        .eq("id", variant.id);
-                    if (vErr) {
-                        console.error("Trade-in variant qty error:", vErr);
-                    } else {
-                        // Update in-memory
-                        const vIdx = DB.variants.findIndex((x) => x.id === variant.id);
-                        if (vIdx !== -1) {
-                            DB.variants[vIdx].qty = newQty;
+                    const { error: saleErr } = await sb.from("sales").insert([saleData]);
+                    if (saleErr) throw saleErr;
+                } catch (supabaseError) {
+                    console.error("Supabase sale save failed, saving locally:", supabaseError);
+                    // Save to offline DB
+                    const offlineDB = window.offlineDB;
+                    if (offlineDB) {
+                        try {
+                            await offlineDB.put('sales', saleData);
+                            await offlineDB.queueOperation('create', 'sales', saleData, saleData.id);
+                        } catch (offlineError) {
+                            console.error("Failed to save sale to offline DB:", offlineError);
                         }
-                        console.log("Trade-in: Deducted 1 from variant inventory, new qty:", newQty);
                     }
-                } catch (variantError) {
-                    console.error("Error deducting variant inventory:", variantError);
-                    // Don't fail the whole trade-in if variant deduction fails
                 }
             }
 
-            // Create sales record for trade-in (like layby does)
-            try {
-                const receiptNumber = "TRDIN-" + String((DB.sales || []).length + 1).padStart(5, "0");
-                const saleData = {
+            // Always save to local DB
+            DB.sales.unshift(saleData);
+
+            // Create commission record if variant has commission rate
+            if (variant && variant.commission_rate > 0) {
+                const commissionAmount = (sale_value - trade_in_value) * (variant.commission_rate / 100);
+                const commissionData = {
                     id: uid(),
+                    agent_id: user?.id,
+                    agent_name: user?.name,
                     store_id: storeId,
-                    user_id: user?.id,
-                    user_name: user?.name,
                     receipt_number: receiptNumber,
-                    product_name: product?.name || tradeInData.item_name,
-                    sku: variant?.sku || "TRADEIN",
-                    variant_label: variant
-                        ? `${variant.color || ""} ${variant.storage || ""}`.trim()
-                        : "",
-                    quantity: 1,
-                    unit_price: sale_value,
-                    cost_price: trade_in_value,
-                    subtotal: sale_value,
-                    discount: trade_in_value, // Trade-in value acts as discount
-                    total: sale_value - trade_in_value,
-                    profit: (sale_value - trade_in_value) - trade_in_value,
-                    commission_rate: variant?.commission_rate || 0,
-                    payment_method: "trade_in",
-                    customer_name: customer_name || "Trade-in Customer",
-                    identifier: serial_number,
-                    date_str: today(),
+                    total_amount: sale_value - trade_in_value,
+                    commission_rate: variant.commission_rate,
+                    commission_amount: commissionAmount,
+                    status: "pending",
+                    items: JSON.stringify([{
+                        product_name: product?.name || tradeInData.item_name,
+                        variant_label: variant
+                            ? `${variant.color || ""} ${variant.storage || ""}`.trim()
+                            : "",
+                        quantity: 1,
+                        unit_price: sale_value,
+                        commission_rate: variant.commission_rate,
+                        commission_amount: commissionAmount
+                    }]),
+                    sale_date: today(),
                     created_at: now(),
                 };
 
-                const { error: saleErr } = await sb.from("sales").insert([saleData]);
-                if (saleErr) {
-                    console.error("Trade-in sale record error:", saleErr);
-                } else {
-                    DB.sales.unshift(saleData);
-
-                    // Create commission record if variant has commission rate
-                    if (variant && variant.commission_rate > 0) {
-                        const commissionAmount = (sale_value - trade_in_value) * (variant.commission_rate / 100);
-                        const commissionData = {
-                            id: uid(),
-                            agent_id: user?.id,
-                            agent_name: user?.name,
-                            store_id: storeId,
-                            receipt_number: receiptNumber,
-                            total_amount: sale_value - trade_in_value,
-                            commission_rate: variant.commission_rate,
-                            commission_amount: commissionAmount,
-                            status: "pending",
-                            items: JSON.stringify([{
-                                product_name: product?.name || tradeInData.item_name,
-                                variant_label: variant
-                                    ? `${variant.color || ""} ${variant.storage || ""}`.trim()
-                                    : "",
-                                quantity: 1,
-                                unit_price: sale_value,
-                                commission_rate: variant.commission_rate,
-                                commission_amount: commissionAmount
-                            }]),
-                            sale_date: today(),
-                            created_at: now(),
-                        };
-
+                if (sb) {
+                    try {
                         const { error: commErr } = await sb.from("commission_records").insert([commissionData]);
                         if (commErr) {
                             console.error("Trade-in commission record error:", commErr);
-                        } else {
-                            DB.commissionRecords = DB.commissionRecords || [];
-                            DB.commissionRecords.unshift(commissionData);
-                            console.log("Trade-in commission record created:", commissionAmount);
+                            // Queue for offline sync
+                            const offlineDB = window.offlineDB;
+                            if (offlineDB) {
+                                await offlineDB.queueOperation('create', 'commission_records', commissionData, commissionData.id);
+                            }
                         }
+                    } catch (commError) {
+                        console.error("Commission insert failed, queueing for sync:", commError);
                     }
                 }
-            } catch (saleError) {
-                console.error("Error creating trade-in sale record:", saleError);
-                // Don't fail the whole trade-in if sale record creation fails
+
+                DB.commissionRecords = DB.commissionRecords || [];
+                DB.commissionRecords.unshift(commissionData);
+                console.log("Trade-in commission record created:", commissionAmount);
             }
+        } catch (saleError) {
+            console.error("Error creating trade-in sale record:", saleError);
+            // Don't fail the whole trade-in if sale record creation fails
+        }
 
         // Save to local DB with all fields
         DB.tradeIns.unshift(tradeInData);

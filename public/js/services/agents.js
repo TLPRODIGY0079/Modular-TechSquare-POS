@@ -1013,13 +1013,29 @@ async function assignProductToAgent() {
             updated_at: now()
         };
 
-        // Save to Supabase
+        // Save to Supabase (if online)
         if (sb) {
-            const { error: assignError } = await sb.from("agent_assignments").insert([assignmentData]);
-            if (assignError) throw assignError;
+            try {
+                const { error: assignError } = await sb.from("agent_assignments").insert([assignmentData]);
+                if (assignError) throw assignError;
+            } catch (supabaseError) {
+                console.error("Supabase assignment save failed, saving locally:", supabaseError);
+                // Save to IndexedDB for offline sync
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    try {
+                        await offlineDB.put('agent_assignments', assignmentData);
+                        await offlineDB.queueOperation('create', 'agent_assignments', assignmentData, assignmentData.id);
+                        console.log("Assignment saved to offline DB for sync");
+                    } catch (offlineError) {
+                        console.error("Offline DB save failed:", offlineError);
+                        throw offlineError;
+                    }
+                }
+            }
         }
 
-        // Save to local DB
+        // Save to local DB (always, regardless of Supabase success)
         if (!DB.agentAssignments) DB.agentAssignments = [];
         DB.agentAssignments.unshift(assignmentData);
 
@@ -1031,11 +1047,20 @@ async function assignProductToAgent() {
         };
 
         if (sb) {
-            const { error: variantError } = await sb.from("variants").update(variantUpdate).eq("id", variantId);
-            if (variantError) throw variantError;
+            try {
+                const { error: variantError } = await sb.from("variants").update(variantUpdate).eq("id", variantId);
+                if (variantError) throw variantError;
+            } catch (supabaseError) {
+                console.error("Supabase variant update failed, queueing for sync:", supabaseError);
+                // Queue for offline sync
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    await offlineDB.queueOperation('update', 'variants', variantUpdate, variantId);
+                }
+            }
         }
 
-        // Update local variant
+        // Always update local variant
         const variantIndex = DB.variants.findIndex(v => v.id === variantId);
         if (variantIndex !== -1) {
             DB.variants[variantIndex].qty = newQty;
@@ -1137,11 +1162,30 @@ async function completeAgentAssignment(assignmentId) {
             created_at: now()
         };
 
-        // Save sale to Supabase
+        // Save sale to Supabase (if online)
         if (sb) {
-            const { error: saleError } = await sb.from("sales").insert([saleData]);
-            if (saleError) throw saleError;
+            try {
+                const { error: saleError } = await sb.from("sales").insert([saleData]);
+                if (saleError) throw saleError;
+            } catch (supabaseError) {
+                console.error("Supabase sale save failed, saving locally:", supabaseError);
+                // Save to IndexedDB for offline sync
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    try {
+                        await offlineDB.put('sales', saleData);
+                        await offlineDB.queueOperation('create', 'sales', saleData, saleData.id);
+                        console.log("Agent sale saved to offline DB for sync");
+                    } catch (offlineError) {
+                        console.error("Offline DB save failed:", offlineError);
+                    }
+                }
+            }
         }
+
+        // Save sale to local DB (always, regardless of Supabase success)
+        if (!DB.sales) DB.sales = [];
+        DB.sales.unshift(saleData);
 
         // Save sale to local DB
         if (!DB.sales) DB.sales = [];
@@ -1156,11 +1200,20 @@ async function completeAgentAssignment(assignmentId) {
         };
 
         if (sb) {
-            const { error: assignError } = await sb.from("agent_assignments").update(updates).eq("id", assignmentId);
-            if (assignError) throw assignError;
+            try {
+                const { error: assignError } = await sb.from("agent_assignments").update(updates).eq("id", assignmentId);
+                if (assignError) throw assignError;
+            } catch (supabaseError) {
+                console.error("Supabase assignment update failed, queueing for sync:", supabaseError);
+                // Queue for offline sync
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    await offlineDB.queueOperation('update', 'agent_assignments', updates, assignmentId);
+                }
+            }
         }
 
-        // Update local assignment
+        // Update local assignment (always, regardless of Supabase success)
         const index = DB.agentAssignments.findIndex(a => a.id === assignmentId);
         if (index !== -1) {
             DB.agentAssignments[index] = { ...DB.agentAssignments[index], ...updates };

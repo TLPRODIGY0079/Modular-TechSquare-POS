@@ -240,30 +240,65 @@ async function createLayby() {
             const { layby_number, ...dbData } = laybyData;
             console.log("Sending to Supabase:", { product_name: dbData.product_name, start_date: dbData.start_date }); // Debug log
             
-            const { data: layby, error } = await sb
-                .from("layby_transactions")
-                .insert([dbData])
-                .select()
-                .single();
-            if (error) throw error;
+            try {
+                const { data: layby, error } = await sb
+                    .from("layby_transactions")
+                    .insert([dbData])
+                    .select()
+                    .single();
+                if (error) throw error;
 
-            // Record initial payment if any
-            if (initial > 0) {
-                await sb.from("layby_payments").insert([
-                    {
-                        id: uid(),
-                        layby_id: layby.id,
-                        amount: initial,
-                        payment_method: "cash",
-                        user_id: user?.id,
-                        user_name: user?.name,
-                        notes: "Initial payment",
-                        created_at: now()
-                    },
-                ]);
+                // Record initial payment if any
+                if (initial > 0) {
+                    try {
+                        await sb.from("layby_payments").insert([
+                            {
+                                id: uid(),
+                                layby_id: layby.id,
+                                amount: initial,
+                                payment_method: "cash",
+                                user_id: user?.id,
+                                user_name: user?.name,
+                                notes: "Initial payment",
+                                created_at: now()
+                            },
+                        ]);
+                    } catch (paymentError) {
+                        console.error("Payment insertion failed, queueing for sync:", paymentError);
+                        // Queue payment for offline sync
+                        const offlineDB = window.offlineDB;
+                        if (offlineDB) {
+                            await offlineDB.queueOperation('create', 'layby_payments', {
+                                id: uid(),
+                                layby_id: layby.id,
+                                amount: initial,
+                                payment_method: "cash",
+                                user_id: user?.id,
+                                user_name: user?.name,
+                                notes: "Initial payment",
+                                created_at: now()
+                            });
+                        }
+                    }
+                }
+            } catch (supabaseError) {
+                console.error("Supabase layby save failed, saving locally:", supabaseError);
+                // Save to IndexedDB for offline sync
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    try {
+                        await offlineDB.put('layby_transactions', dbData);
+                        await offlineDB.queueOperation('create', 'layby_transactions', dbData, dbData.id);
+                        console.log("Layby saved to offline DB for sync");
+                    } catch (offlineError) {
+                        console.error("Offline DB save failed:", offlineError);
+                        throw offlineError; // Re-throw to handle in main catch block
+                    }
+                }
             }
         }
 
+        // Save to local DB (always, regardless of Supabase success)
         DB.laybys.unshift(laybyData);
         await closeModal();
         renderLayby();

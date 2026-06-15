@@ -81,6 +81,9 @@ class OfflineDB {
                 if (!db.objectStoreNames.contains('sync_queue')) {
                     db.createObjectStore('sync_queue', { keyPath: 'id' });
                 }
+                if (!db.objectStoreNames.contains('agent_assignments')) {
+                    db.createObjectStore('agent_assignments', { keyPath: 'id' });
+                }
             };
         });
     }
