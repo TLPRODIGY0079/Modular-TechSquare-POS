@@ -26,7 +26,12 @@ let DB = {
 };
 
 // Offline Mode State
-let forcedOfflineMode = localStorage.getItem("forcedOfflineMode") === "true";
+let forcedOfflineMode = false;
+try {
+    forcedOfflineMode = localStorage.getItem("forcedOfflineMode") === "true";
+} catch (e) {
+    console.warn("localStorage access denied for forcedOfflineMode");
+}
 let currentPOSStore = null;
 let isProcessingTradeIn = false;
 
@@ -45,10 +50,14 @@ function isOnlineMode() {
 // Toggle forced offline mode
 function toggleForcedOffline() {
     forcedOfflineMode = !forcedOfflineMode;
-    localStorage.setItem(
-        "forcedOfflineMode",
-        forcedOfflineMode.toString(),
-    );
+    try {
+        localStorage.setItem(
+            "forcedOfflineMode",
+            forcedOfflineMode.toString(),
+        );
+    } catch (e) {
+        console.warn("localStorage access denied for forcedOfflineMode");
+    }
 
     // Update UI
     updateConnBadge();

@@ -6,7 +6,6 @@ import { openModal, closeModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { STORE1_ID, STORE2_ID, WAREHOUSE_ID } from '../config.js';
 import { calculateCommission } from './agents.js';
-import printerService from './printer.js';
 
 // Render sales/POS page
 export function renderSales() {
@@ -657,22 +656,30 @@ function printReceipt(receiptNo) {
     document.getElementById('bluetoothPrintBtn').addEventListener('click', async () => {
         closeModal();
         
-        // Check if Bluetooth is available
-        if (!printerService.isBluetoothAvailable()) {
-            toast("Bluetooth not supported in this browser. Try Chrome or Edge.", "error");
-            return;
-        }
-        
-        // Connect to printer if not already connected
-        if (!printerService.getConnectionStatus()) {
-            const connected = await printerService.connectBluetoothPrinter();
-            if (!connected) {
-                return; // Connection failed
+        // Dynamically import printer service
+        try {
+            const printerService = (await import('./printer.js')).default;
+            
+            // Check if Bluetooth is available
+            if (!printerService.isBluetoothAvailable()) {
+                toast("Bluetooth not supported in this browser. Try Chrome or Edge.", "error");
+                return;
             }
+            
+            // Connect to printer if not already connected
+            if (!printerService.getConnectionStatus()) {
+                const connected = await printerService.connectBluetoothPrinter();
+                if (!connected) {
+                    return; // Connection failed
+                }
+            }
+            
+            // Print the receipt
+            await printerService.printBluetoothReceipt(receiptNo, sales, DB);
+        } catch (error) {
+            console.error("Printer service error:", error);
+            toast("Failed to load printer service: " + error.message, "error");
         }
-        
-        // Print the receipt
-        await printerService.printBluetoothReceipt(receiptNo, sales, DB);
     });
 
     document.getElementById('standardPrintBtn').addEventListener('click', () => {

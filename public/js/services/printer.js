@@ -10,44 +10,67 @@ let printerDevice = null;
 let printerCharacteristic = null;
 let isConnected = false;
 
+// Helper function to create Uint8Array from bytes
+function createUint8Array(bytes) {
+    return new Uint8Array(bytes);
+}
+
+// Helper function to concatenate arrays
+function concatArrays(arrays) {
+    const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const arr of arrays) {
+        result.set(arr, offset);
+        offset += arr.length;
+    }
+    return result;
+}
+
+// Helper function to convert string to Uint8Array
+function stringToUint8Array(str) {
+    const encoder = new TextEncoder();
+    return encoder.encode(str);
+}
+
 // ESC/POS Commands
 const ESC_POS = {
     // Initialize printer
-    INIT: Buffer.from([0x1B, 0x40]),
+    INIT: createUint8Array([0x1B, 0x40]),
     
     // Print and feed n lines
-    FEED: (lines = 3) => Buffer.from([0x1B, 0x64, lines]),
+    FEED: (lines = 3) => createUint8Array([0x1B, 0x64, lines]),
     
     // Cut paper (partial cut)
-    PARTIAL_CUT: Buffer.from([0x1D, 0x56, 66, 0]),
+    PARTIAL_CUT: createUint8Array([0x1D, 0x56, 66, 0]),
     
     // Full cut
-    FULL_CUT: Buffer.from([0x1D, 0x56, 66, 1]),
+    FULL_CUT: createUint8Array([0x1D, 0x56, 66, 1]),
     
     // Set alignment (0=left, 1=center, 2=right)
-    ALIGN_LEFT: Buffer.from([0x1B, 0x61, 0]),
-    ALIGN_CENTER: Buffer.from([0x1B, 0x61, 1]),
-    ALIGN_RIGHT: Buffer.from([0x1B, 0x61, 2]),
+    ALIGN_LEFT: createUint8Array([0x1B, 0x61, 0]),
+    ALIGN_CENTER: createUint8Array([0x1B, 0x61, 1]),
+    ALIGN_RIGHT: createUint8Array([0x1B, 0x61, 2]),
     
     // Text styles
-    BOLD_ON: Buffer.from([0x1B, 0x45, 1]),
-    BOLD_OFF: Buffer.from([0x1B, 0x45, 0]),
+    BOLD_ON: createUint8Array([0x1B, 0x45, 1]),
+    BOLD_OFF: createUint8Array([0x1B, 0x45, 0]),
     
     // Double height/width
-    DOUBLE_HEIGHT_WIDTH: Buffer.from([0x1D, 0x21, 0x33]),
-    NORMAL_SIZE: Buffer.from([0x1D, 0x21, 0x00]),
+    DOUBLE_HEIGHT_WIDTH: createUint8Array([0x1D, 0x21, 0x33]),
+    NORMAL_SIZE: createUint8Array([0x1D, 0x21, 0x00]),
     
     // Underline
-    UNDERLINE_ON: Buffer.from([0x1B, 0x2D, 1]),
-    UNDERLINE_OFF: Buffer.from([0x1B, 0x2D, 0]),
+    UNDERLINE_ON: createUint8Array([0x1B, 0x2D, 1]),
+    UNDERLINE_OFF: createUint8Array([0x1B, 0x2D, 0]),
     
     // Line spacing
-    LINE_SPACING_DEFAULT: Buffer.from([0x1B, 0x32]),
+    LINE_SPACING_DEFAULT: createUint8Array([0x1B, 0x32]),
     
     // Barcode commands
-    BARCODE_HEIGHT: Buffer.from([0x1D, 0x68, 100]),
-    BARCODE_WIDTH: Buffer.from([0x1D, 0x77, 2]),
-    BARCODE_PRINT: Buffer.from([0x1D, 0x6B, 73, 0, 0])
+    BARCODE_HEIGHT: createUint8Array([0x1D, 0x68, 100]),
+    BARCODE_WIDTH: createUint8Array([0x1D, 0x77, 2]),
+    BARCODE_PRINT: createUint8Array([0x1D, 0x6B, 73, 0, 0])
 };
 
 // Check if Web Bluetooth API is available
@@ -162,7 +185,7 @@ async function sendToPrinter(data) {
 
     try {
         if (typeof data === 'string') {
-            data = Buffer.from(data, 'utf8');
+            data = stringToUint8Array(data);
         }
         
         await printerCharacteristic.writeValue(data);
@@ -200,7 +223,7 @@ async function printText(text, options = {}) {
     }
     
     // Add text
-    commands.push(Buffer.from(text, 'utf8'));
+    commands.push(stringToUint8Array(text));
     
     // Reset style
     if (bold) {
@@ -210,10 +233,10 @@ async function printText(text, options = {}) {
     }
     
     // New line
-    commands.push(Buffer.from('\n', 'utf8'));
+    commands.push(stringToUint8Array('\n'));
     
     // Concatenate all commands
-    const combinedBuffer = Buffer.concat(commands);
+    const combinedBuffer = concatArrays(commands);
     return sendToPrinter(combinedBuffer);
 }
 
@@ -246,11 +269,11 @@ async function printBluetoothReceipt(receiptNo, sales, DB) {
         // Header
         await sendToPrinter(ESC_POS.ALIGN_CENTER);
         await sendToPrinter(ESC_POS.DOUBLE_HEIGHT_WIDTH);
-        await sendToPrinter(Buffer.from('TECHSQUARE\n', 'utf8'));
+        await sendToPrinter(stringToUint8Array('TECHSQUARE\n'));
         await sendToPrinter(ESC_POS.NORMAL_SIZE);
-        await sendToPrinter(Buffer.from('Multi-Store POS System\n', 'utf8'));
+        await sendToPrinter(stringToUint8Array('Multi-Store POS System\n'));
         await sendToPrinter(ESC_POS.BOLD_ON);
-        await sendToPrinter(Buffer.from(`${storeName}\n`, 'utf8'));
+        await sendToPrinter(stringToUint8Array(`${storeName}\n`));
         await sendToPrinter(ESC_POS.BOLD_OFF);
         await sendToPrinter(ESC_POS.ALIGN_LEFT);
 
@@ -343,7 +366,7 @@ async function printTestPage() {
 
         await sendToPrinter(ESC_POS.ALIGN_CENTER);
         await sendToPrinter(ESC_POS.DOUBLE_HEIGHT_WIDTH);
-        await sendToPrinter(Buffer.from('TEST PAGE\n', 'utf8'));
+        await sendToPrinter(stringToUint8Array('TEST PAGE\n'));
         await sendToPrinter(ESC_POS.NORMAL_SIZE);
 
         await printSeparator();

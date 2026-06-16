@@ -43,11 +43,18 @@ window.renderHistory = renderHistory;
 window.renderReports = renderReports;
 
 // Theme management
-let currentTheme = localStorage.getItem("techsquare-theme") || "light";
+let currentTheme = "light";
 
 function getSavedTheme() {
-    return localStorage.getItem("techsquare-theme") || "light";
+    try {
+        return localStorage.getItem("techsquare-theme") || "light";
+    } catch (e) {
+        console.warn("localStorage access denied, using default theme");
+        return "light";
+    }
 }
+
+currentTheme = getSavedTheme();
 
 function updateThemeBtn() {
     const btn = document.getElementById("themeToggle");
@@ -62,7 +69,11 @@ function updateThemeBtn() {
 function applyTheme(theme) {
     currentTheme = theme;
     document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("techsquare-theme", theme);
+    try {
+        localStorage.setItem("techsquare-theme", theme);
+    } catch (e) {
+        console.warn("localStorage access denied for theme");
+    }
     updateThemeBtn();
 }
 

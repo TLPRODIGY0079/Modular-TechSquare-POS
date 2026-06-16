@@ -22,6 +22,7 @@ async function restoreSession() {
             }
         } catch (storageError) {
             console.warn("LocalStorage access blocked, cannot restore session:", storageError);
+            return false;
         }
         return false;
     }
