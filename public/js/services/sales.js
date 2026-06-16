@@ -594,11 +594,22 @@ async function completeSale() {
             `,
             `
                 <button class="btn btn-outline" onclick="window.closeModal()">Close</button>
-                <button class="btn btn-primary" onclick="window.salesService.printReceipt('${receiptNo}')">
+                <button class="btn btn-primary" id="printReceiptBtn">
                     <i class="fas fa-print"></i> Print Receipt
                 </button>
             `
         );
+
+        // Setup print button handler
+        setTimeout(() => {
+            const printBtn = document.getElementById('printReceiptBtn');
+            if (printBtn) {
+                printBtn.addEventListener('click', () => {
+                    closeModal();
+                    printReceipt(receiptNo);
+                });
+            }
+        }, 100);
 
     } catch (error) {
         console.error("Sale completion error:", error);
@@ -609,7 +620,9 @@ async function completeSale() {
 // Print receipt
 function printReceipt(receiptNo) {
     const DB = getDB();
-    const sales = DB.sales.filter(s => s.receipt_number === receiptNo);
+    // Handle both base receipt numbers (e.g., "SALE-12345") and item-specific ones (e.g., "SALE-12345-1")
+    const baseReceiptNo = receiptNo.split('-').slice(0, -1).join('-') || receiptNo;
+    const sales = DB.sales.filter(s => s.receipt_number.startsWith(baseReceiptNo));
     
     if (sales.length === 0) {
         toast("Receipt not found", "error");
@@ -675,7 +688,7 @@ function printReceipt(receiptNo) {
             }
             
             // Print the receipt
-            await printerService.printBluetoothReceipt(receiptNo, sales, DB);
+            await printerService.printBluetoothReceipt(baseReceiptNo, sales, DB);
         } catch (error) {
             console.error("Printer service error:", error);
             toast("Failed to load printer service: " + error.message, "error");
@@ -684,7 +697,7 @@ function printReceipt(receiptNo) {
 
     document.getElementById('standardPrintBtn').addEventListener('click', () => {
         closeModal();
-        printStandardReceipt(receiptNo, sales);
+        printStandardReceipt(baseReceiptNo, sales);
     });
 }
 

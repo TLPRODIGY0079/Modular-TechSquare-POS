@@ -232,6 +232,7 @@ function renderVariants() {
                     <th>Storage</th>
                     <th>Price</th>
                     <th>Stock</th>
+                    <th>Commission</th>
                     <th>Store</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -247,7 +248,10 @@ function renderVariants() {
                             <td>${esc(variant.color || '-')}</td>
                             <td>${esc(variant.storage || '-')}</td>
                             <td>${money(variant.price)}</td>
-                            <td>${variant.qty}</td>
+                            <td>
+                                <span class="badge ${variant.qty < 5 ? 'badge-red' : 'badge-green'}">${variant.qty}</span>
+                            </td>
+                            <td>${variant.commission_rate ? money(variant.commission_rate) : '-'}</td>
                             <td>
                                 <span class="badge ${variant.store_id === WAREHOUSE_ID ? 'badge-blue' : 'badge-green'}">
                                     ${variant.store_id === WAREHOUSE_ID ? 'Warehouse' : (variant.store_id === STORE1_ID ? 'Store 1' : 'Store 2')}
@@ -549,11 +553,17 @@ function addVariant(productId) {
                         <input type="number" class="form-input" id="variantQty" min="0" value="0" required>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="variantActive" checked>
-                        Active
-                    </label>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Commission Rate (per unit)</label>
+                        <input type="number" class="form-input" id="variantCommissionRate" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="variantActive" checked>
+                            Active
+                        </label>
+                    </div>
                 </div>
             </form>
         `,
@@ -582,6 +592,7 @@ async function saveNewVariant(productId) {
     const costPrice = parseFloat(document.getElementById("variantCostPrice").value) || 0;
     const price = parseFloat(document.getElementById("variantPrice").value) || 0;
     const qty = parseInt(document.getElementById("variantQty").value) || 0;
+    const commissionRate = parseFloat(document.getElementById("variantCommissionRate").value) || 0;
     const isActive = document.getElementById("variantActive").checked;
 
     if (!sku) {
@@ -604,6 +615,7 @@ async function saveNewVariant(productId) {
             cost_price: costPrice,
             price,
             qty,
+            commission_rate: commissionRate,
             is_active: isActive,
             created_at: now(),
             updated_at: now()
@@ -691,11 +703,17 @@ function editVariant(variantId) {
                         <input type="number" class="form-input" id="variantQty" value="${variant.qty || 0}" min="0" required>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="variantActive" ${variant.is_active ? 'checked' : ''}>
-                        Active
-                    </label>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Commission Rate (per unit)</label>
+                        <input type="number" class="form-input" id="variantCommissionRate" value="${variant.commission_rate || 0}" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="variantActive" ${variant.is_active ? 'checked' : ''}>
+                            Active
+                        </label>
+                    </div>
                 </div>
             </form>
         `,
@@ -725,6 +743,7 @@ async function saveVariant(variantId) {
     const costPrice = parseFloat(document.getElementById("variantCostPrice").value) || 0;
     const price = parseFloat(document.getElementById("variantPrice").value) || 0;
     const qty = parseInt(document.getElementById("variantQty").value) || 0;
+    const commissionRate = parseFloat(document.getElementById("variantCommissionRate").value) || 0;
     const isActive = document.getElementById("variantActive").checked;
 
     if (!sku) {
@@ -745,6 +764,7 @@ async function saveVariant(variantId) {
             cost_price: costPrice,
             price,
             qty,
+            commission_rate: commissionRate,
             is_active: isActive,
             updated_at: now()
         };
