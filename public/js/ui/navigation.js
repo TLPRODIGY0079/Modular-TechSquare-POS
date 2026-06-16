@@ -178,6 +178,9 @@ function renderTopbarActions(extra = "") {
         <div id="connBadge" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-right:8px">
             <i class="fas fa-wifi"></i> Online
         </div>
+        <button class="btn-ghost" id="printerManagerBtn" title="Printer Manager">
+            <i class="fas fa-print"></i>
+        </button>
         <button class="btn-ghost" id="themeToggle" title="Toggle theme">
             <i class="fas fa-moon"></i>
         </button>
@@ -193,6 +196,150 @@ function renderTopbarActions(extra = "") {
             }
         });
     }
+    
+    // Add printer manager handler
+    const printerManagerBtn = document.getElementById("printerManagerBtn");
+    if (printerManagerBtn) {
+        printerManagerBtn.addEventListener("click", showPrinterManager);
+    }
+}
+
+// Show printer manager modal
+function showPrinterManager() {
+    // Import printer service dynamically
+    import('../services/printer.js').then(module => {
+        const printerService = module.default;
+        const isConnected = printerService.getConnectionStatus();
+        const isBluetoothAvailable = printerService.isBluetoothAvailable();
+        
+        const modalContent = `
+            <div style="padding: 20px;">
+                <h3 style="margin-bottom: 20px; font-size: 18px; font-weight: 700;">
+                    <i class="fas fa-print" style="margin-right: 10px; color: var(--ac);"></i>
+                    Printer Manager
+                </h3>
+                
+                <!-- Bluetooth Status -->
+                <div style="background: var(--bg); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="font-weight: 600;">Bluetooth Support</span>
+                        <span class="badge ${isBluetoothAvailable ? 'badge-green' : 'badge-red'}">
+                            ${isBluetoothAvailable ? 'Available' : 'Not Available'}
+                        </span>
+                    </div>
+                    ${!isBluetoothAvailable ? `
+                        <p style="font-size: 12px; color: var(--tx2); margin-top: 8px;">
+                            <i class="fas fa-info-circle"></i> 
+                            Bluetooth printing requires a compatible browser (Chrome, Edge). 
+                        </p>
+                    ` : ''}
+                </div>
+                
+                <!-- Connection Status -->
+                <div style="background: var(--bg); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="font-weight: 600;">Printer Connection</span>
+                        <span class="badge ${isConnected ? 'badge-green' : 'badge-orange'}">
+                            ${isConnected ? 'Connected' : 'Disconnected'}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Actions -->
+                ${isBluetoothAvailable ? `
+                    <div style="display: grid; gap: 12px;">
+                        ${!isConnected ? `
+                            <button class="btn btn-primary" id="connectPrinterBtn" style="width: 100%;">
+                                <i class="fab fa-bluetooth" style="margin-right: 8px;"></i>
+                                Connect Bluetooth Printer
+                            </button>
+                        ` : `
+                            <button class="btn btn-outline" id="disconnectPrinterBtn" style="width: 100%;">
+                                <i class="fas fa-unlink" style="margin-right: 8px;"></i>
+                                Disconnect Printer
+                            </button>
+                        `}
+                        
+                        <button class="btn btn-outline" id="testPrintBtn" style="width: 100%;" ${!isConnected ? 'disabled style="opacity: 0.5;"' : ''}>
+                            <i class="fas fa-file-alt" style="margin-right: 8px;"></i>
+                            Print Test Page
+                        </button>
+                    </div>
+                ` : `
+                    <div style="background: var(--wn2); padding: 12px; border-radius: 6px; border-left: 3px solid var(--wn);">
+                        <p style="font-size: 13px; color: var(--wn);">
+                            <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                            Standard printing is available via browser print dialog when generating receipts.
+                        </p>
+                    </div>
+                `}
+            </div>
+        `;
+        
+        // Show modal
+        if (typeof openModal === 'function') {
+            openModal(
+                'Printer Manager',
+                modalContent,
+                `
+                    <button class="btn btn-outline" onclick="window.closeModal()">Close</button>
+                `
+            );
+            
+            // Setup button handlers after modal is rendered
+            setTimeout(() => {
+                if (!isConnected) {
+                    const connectBtn = document.getElementById('connectPrinterBtn');
+                    if (connectBtn) {
+                        connectBtn.addEventListener('click', async () => {
+                            connectBtn.disabled = true;
+                            connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+                            
+                            const success = await printerService.connectBluetoothPrinter();
+                            
+                            connectBtn.disabled = false;
+                            connectBtn.innerHTML = '<i class="fab fa-bluetooth" style="margin-right: 8px;"></i> Connect Bluetooth Printer';
+                            
+                            if (success) {
+                                // Refresh modal
+                                setTimeout(() => {
+                                    closeModal();
+                                    showPrinterManager();
+                                }, 1000);
+                            }
+                        });
+                    }
+                } else {
+                    const disconnectBtn = document.getElementById('disconnectPrinterBtn');
+                    if (disconnectBtn) {
+                        disconnectBtn.addEventListener('click', () => {
+                            printerService.disconnectPrinter();
+                            closeModal();
+                            showPrinterManager();
+                        });
+                    }
+                    
+                    const testPrintBtn = document.getElementById('testPrintBtn');
+                    if (testPrintBtn) {
+                        testPrintBtn.addEventListener('click', async () => {
+                            testPrintBtn.disabled = true;
+                            testPrintBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Printing...';
+                            
+                            await printerService.printTestPage();
+                            
+                            testPrintBtn.disabled = false;
+                            testPrintBtn.innerHTML = '<i class="fas fa-file-alt" style="margin-right: 8px;"></i> Print Test Page';
+                        });
+                    }
+                }
+            }, 100);
+        }
+    }).catch(error => {
+        console.error('Failed to load printer service:', error);
+        if (typeof toast === 'function') {
+            toast('Failed to load printer service', 'error');
+        }
+    });
 }
 
 // Navigate to a page

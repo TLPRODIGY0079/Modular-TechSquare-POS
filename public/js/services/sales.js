@@ -6,6 +6,7 @@ import { openModal, closeModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { STORE1_ID, STORE2_ID, WAREHOUSE_ID } from '../config.js';
 import { calculateCommission } from './agents.js';
+import printerService from './printer.js';
 
 // Render sales/POS page
 export function renderSales() {
@@ -155,9 +156,7 @@ function setupPOSListeners() {
     // Barcode scanner
     const barcodeBtn = document.getElementById("barcodeScanBtn");
     if (barcodeBtn) {
-        barcodeBtn.addEventListener("click", () => {
-            toast("Barcode scanner coming soon", "info");
-        });
+        barcodeBtn.addEventListener("click", openBarcodeScanner);
     }
 
     // Complete sale
@@ -180,6 +179,135 @@ function setupPOSListeners() {
                 renderPOSProducts();
             });
         }
+    }
+}
+
+// Barcode scanner functions
+let html5QrcodeScanner = null;
+
+function openBarcodeScanner() {
+    const overlay = document.getElementById("barcodeScannerOverlay");
+    if (!overlay) {
+        toast("Barcode scanner UI not found", "error");
+        return;
+    }
+    
+    overlay.style.display = "flex";
+    
+    // Initialize scanner
+    if (typeof Html5Qrcode !== 'undefined') {
+        // Clear previous instance if exists
+        if (html5QrcodeScanner) {
+            try {
+                html5QrcodeScanner.clear();
+            } catch (e) {
+                console.log("Scanner clear error:", e);
+            }
+        }
+        
+        html5QrcodeScanner = new Html5Qrcode("barcodeReader");
+        
+        const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            facingMode: "environment" // Use back camera
+        };
+        
+        html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            config,
+            onBarcodeDetected,
+            (errorMessage) => {
+                // Ignore frequent scanning errors
+                if (!errorMessage.includes('No barcode')) {
+                    console.log("Barcode scan error:", errorMessage);
+                }
+            }
+        ).catch(err => {
+            console.error("Scanner start error:", err);
+            toast("Failed to start camera: " + err.message, "error");
+            closeBarcodeScanner();
+        });
+    } else {
+        toast("Barcode scanner library not loaded", "error");
+        closeBarcodeScanner();
+    }
+    
+    // Setup close button
+    const closeBtn = document.getElementById("barcodeScannerClose");
+    if (closeBtn) {
+        closeBtn.onclick = closeBarcodeScanner;
+    }
+}
+
+function closeBarcodeScanner() {
+    const overlay = document.getElementById("barcodeScannerOverlay");
+    if (overlay) {
+        overlay.style.display = "none";
+    }
+    
+    if (html5QrcodeScanner) {
+        try {
+            html5QrcodeScanner.stop().then(() => {
+                html5QrcodeScanner.clear();
+                html5QrcodeScanner = null;
+            }).catch(err => {
+                console.log("Scanner stop error:", err);
+                html5QrcodeScanner = null;
+            });
+        } catch (e) {
+            console.log("Scanner cleanup error:", e);
+            html5QrcodeScanner = null;
+        }
+    }
+}
+
+function onBarcodeDetected(decodedText, decodedResult) {
+    console.log("Barcode detected:", decodedText);
+    
+    // Stop scanning temporarily
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.pause();
+    }
+    
+    // Search for product by barcode/SKU
+    const DB = getDB();
+    let foundProduct = null;
+    let foundVariant = null;
+    
+    // First try to find by SKU in variants
+    foundVariant = DB.variants.find(v => v.sku === decodedText);
+    if (foundVariant) {
+        foundProduct = DB.products.find(p => p.id === foundVariant.product_id);
+    }
+    
+    // If not found, try to find by barcode in products
+    if (!foundProduct) {
+        foundProduct = DB.products.find(p => p.barcode === decodedText);
+        if (foundProduct) {
+            foundVariant = DB.variants.find(v => v.product_id === foundProduct.id && v.qty > 0);
+        }
+    }
+    
+    if (foundProduct && foundVariant) {
+        // Add to cart
+        addToCart(foundVariant.id);
+        toast(`Added: ${foundProduct.name}`, "success");
+        
+        // Close scanner after successful scan
+        setTimeout(() => {
+            closeBarcodeScanner();
+        }, 1000);
+    } else {
+        toast(`Product not found: ${decodedText}`, "error");
+        
+        // Resume scanning after 2 seconds
+        setTimeout(() => {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.resume();
+            }
+        }, 2000);
     }
 }
 
@@ -489,67 +617,374 @@ function printReceipt(receiptNo) {
         return;
     }
 
-    // Generate receipt HTML
+    // Show printer selection modal
+    openModal(
+        "Select Printer",
+        `
+            <div style="text-align: center; padding: 20px;">
+                <p style="margin-bottom: 20px; color: var(--tx2);">How would you like to print the receipt?</p>
+                
+                <div style="display: grid; gap: 12px; margin-bottom: 20px;">
+                    <button class="btn btn-outline" id="bluetoothPrintBtn" style="width: 100%; padding: 16px;">
+                        <i class="fab fa-bluetooth" style="font-size: 24px; margin-right: 12px;"></i>
+                        <div style="text-align: left; display: inline-block;">
+                            <div style="font-weight: 700; font-size: 14px;">Bluetooth Receipt Printer</div>
+                            <div style="font-size: 12px; color: var(--tx2);">Connect to thermal printer</div>
+                        </div>
+                    </button>
+                    
+                    <button class="btn btn-outline" id="standardPrintBtn" style="width: 100%; padding: 16px;">
+                        <i class="fas fa-print" style="font-size: 24px; margin-right: 12px;"></i>
+                        <div style="text-align: left; display: inline-block;">
+                            <div style="font-weight: 700; font-size: 14px;">Standard Printer</div>
+                            <div style="font-size: 12px; color: var(--tx2);">Use system printer dialog</div>
+                        </div>
+                    </button>
+                </div>
+                
+                <p style="font-size: 12px; color: var(--tx3);">
+                    <i class="fas fa-info-circle"></i> 
+                    For Bluetooth printing, ensure your printer is paired and connected to your device
+                </p>
+            </div>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+        `
+    );
+
+    // Setup button handlers
+    document.getElementById('bluetoothPrintBtn').addEventListener('click', async () => {
+        closeModal();
+        
+        // Check if Bluetooth is available
+        if (!printerService.isBluetoothAvailable()) {
+            toast("Bluetooth not supported in this browser. Try Chrome or Edge.", "error");
+            return;
+        }
+        
+        // Connect to printer if not already connected
+        if (!printerService.getConnectionStatus()) {
+            const connected = await printerService.connectBluetoothPrinter();
+            if (!connected) {
+                return; // Connection failed
+            }
+        }
+        
+        // Print the receipt
+        await printerService.printBluetoothReceipt(receiptNo, sales, DB);
+    });
+
+    document.getElementById('standardPrintBtn').addEventListener('click', () => {
+        closeModal();
+        printStandardReceipt(receiptNo, sales);
+    });
+}
+
+// Standard print receipt (original implementation)
+function printStandardReceipt(receiptNo, sales) {
+    const DB = getDB();
+    
+    const firstSale = sales[0];
+    const totalAmount = sales.reduce((sum, s) => sum + s.total, 0);
+    const totalItems = sales.reduce((sum, s) => sum + s.quantity, 0);
+    const storeName = firstSale.store_id === STORE1_ID ? "Store 1" : "Store 2";
+    const cashierName = firstSale.user_name || "System";
+    const customerName = firstSale.customer_name || "Walk-in Customer";
+    const paymentMethod = firstSale.payment_method || "Cash";
+    
+    // Generate receipt items
+    const itemsHTML = sales.map((sale, index) => {
+        const itemTotal = sale.total;
+        const unitPrice = sale.unit_price || 0;
+        const variantLabel = sale.variant_label || "";
+        
+        return `
+            <div class="receipt-item">
+                <div class="item-qty">${sale.quantity}x</div>
+                <div class="item-details">
+                    <div class="item-name">${sale.product_name}</div>
+                    ${variantLabel ? `<div class="item-variant">${variantLabel}</div>` : ""}
+                    <div class="item-price">@ ${money(unitPrice)}</div>
+                </div>
+                <div class="item-total">${money(itemTotal)}</div>
+            </div>
+        `;
+    }).join('');
+
+    // Generate receipt HTML with improved formatting
     const receiptHTML = `
         <div class="receipt">
-            <div class="receipt-center">
-                <h2>TECHSQUARE</h2>
-                <p>Multi-Store POS</p>
+            <div class="receipt-header">
+                <div class="receipt-center">
+                    <h2>TECHSQUARE</h2>
+                    <p class="receipt-subtitle">Multi-Store POS System</p>
+                    <p class="receipt-store">${storeName}</p>
+                </div>
             </div>
-            <hr>
-            <div class="receipt-row">
-                <span>Receipt:</span>
-                <span>${receiptNo}</span>
-            </div>
-            <div class="receipt-row">
-                <span>Date:</span>
-                <span>${formatDate(sales[0].created_at)}</span>
-            </div>
-            <hr>
-            ${sales.map(sale => `
+            
+            <hr class="receipt-divider">
+            
+            <div class="receipt-info">
                 <div class="receipt-row">
-                    <span>${sale.product_name}</span>
-                    <span>${money(sale.total)}</span>
+                    <span>Receipt #:</span>
+                    <span>${receiptNo}</span>
                 </div>
                 <div class="receipt-row">
-                    <span>  ${sale.variant_label} x ${sale.quantity}</span>
-                    <span></span>
+                    <span>Date:</span>
+                    <span>${formatDate(firstSale.created_at)}</span>
                 </div>
-            `).join('')}
-            <hr>
-            <div class="receipt-row" style="font-weight: 700;">
-                <span>TOTAL:</span>
-                <span>${money(sales.reduce((sum, s) => sum + s.total, 0))}</span>
+                <div class="receipt-row">
+                    <span>Time:</span>
+                    <span>${firstSale.created_at ? new Date(firstSale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
+                </div>
+                <div class="receipt-row">
+                    <span>Cashier:</span>
+                    <span>${cashierName}</span>
+                </div>
+                <div class="receipt-row">
+                    <span>Customer:</span>
+                    <span>${customerName}</span>
+                </div>
+                <div class="receipt-row">
+                    <span>Payment:</span>
+                    <span>${paymentMethod}</span>
+                </div>
             </div>
-            <div class="receipt-center" style="margin-top: 20px;">
-                <p>Thank you for your purchase!</p>
+            
+            <hr class="receipt-divider">
+            
+            <div class="receipt-items">
+                ${itemsHTML}
+            </div>
+            
+            <hr class="receipt-divider">
+            
+            <div class="receipt-summary">
+                <div class="receipt-row">
+                    <span>Total Items:</span>
+                    <span>${totalItems}</span>
+                </div>
+                <div class="receipt-row receipt-total">
+                    <span>TOTAL AMOUNT:</span>
+                    <span>${money(totalAmount)}</span>
+                </div>
+            </div>
+            
+            <div class="receipt-footer">
+                <hr class="receipt-divider">
+                <div class="receipt-center">
+                    <p class="thank-you">Thank you for shopping with</p>
+                    <p class="thank-you-bold">TECHSQUARE!</p>
+                    <p class="receipt-contact">Contact: +1 (555) 123-4567</p>
+                    <p class="receipt-website">www.techsquare.com</p>
+                </div>
+                <hr class="receipt-divider">
+                <div class="receipt-center">
+                    <p class="receipt-terms">Terms & Conditions Apply</p>
+                    <p class="receipt-return">Return Policy: 7 days with receipt</p>
+                </div>
             </div>
         </div>
     `;
 
-    // Open print window
+    // Open print window with improved styling
     const printWindow = window.open('', '_blank');
     if (printWindow) {
         printWindow.document.write(`
+            <!DOCTYPE html>
             <html>
             <head>
                 <title>Receipt ${receiptNo}</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
-                    body { font-family: 'Courier New', monospace; margin: 20px; }
-                    .receipt { max-width: 300px; margin: 0 auto; }
-                    .receipt-center { text-align: center; }
-                    .receipt-row { display: flex; justify-content: space-between; }
-                    hr { border: none; border-top: 1px dashed #000; margin: 10px 0; }
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
+                    
+                    body {
+                        font-family: 'Courier New', 'Monaco', monospace;
+                        font-size: 12px;
+                        margin: 0;
+                        padding: 20px;
+                        background: #fff;
+                    }
+                    
+                    .receipt {
+                        max-width: 280px;
+                        margin: 0 auto;
+                        padding: 10px;
+                        background: #fff;
+                    }
+                    
+                    .receipt-center {
+                        text-align: center;
+                    }
+                    
+                    .receipt-header h2 {
+                        font-size: 18px;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                        text-transform: uppercase;
+                    }
+                    
+                    .receipt-subtitle {
+                        font-size: 10px;
+                        color: #666;
+                        margin-bottom: 3px;
+                    }
+                    
+                    .receipt-store {
+                        font-size: 11px;
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    
+                    .receipt-divider {
+                        border: none;
+                        border-top: 1px dashed #000;
+                        margin: 8px 0;
+                    }
+                    
+                    .receipt-row {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 4px;
+                        font-size: 11px;
+                    }
+                    
+                    .receipt-info {
+                        margin-bottom: 8px;
+                    }
+                    
+                    .receipt-items {
+                        margin: 8px 0;
+                    }
+                    
+                    .receipt-item {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 6px;
+                        font-size: 11px;
+                    }
+                    
+                    .item-qty {
+                        font-weight: bold;
+                        min-width: 30px;
+                    }
+                    
+                    .item-details {
+                        flex: 1;
+                        margin-left: 8px;
+                    }
+                    
+                    .item-name {
+                        font-weight: bold;
+                        margin-bottom: 1px;
+                    }
+                    
+                    .item-variant {
+                        font-size: 9px;
+                        color: #666;
+                        margin-bottom: 1px;
+                    }
+                    
+                    .item-price {
+                        font-size: 10px;
+                        color: #666;
+                    }
+                    
+                    .item-total {
+                        font-weight: bold;
+                        min-width: 60px;
+                        text-align: right;
+                    }
+                    
+                    .receipt-summary {
+                        margin-top: 8px;
+                    }
+                    
+                    .receipt-total {
+                        font-size: 14px;
+                        font-weight: bold;
+                        margin-top: 8px;
+                        padding-top: 8px;
+                    }
+                    
+                    .receipt-footer {
+                        margin-top: 15px;
+                    }
+                    
+                    .thank-you {
+                        font-size: 11px;
+                        margin-bottom: 2px;
+                    }
+                    
+                    .thank-you-bold {
+                        font-size: 14px;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }
+                    
+                    .receipt-contact {
+                        font-size: 10px;
+                        color: #666;
+                        margin-bottom: 2px;
+                    }
+                    
+                    .receipt-website {
+                        font-size: 10px;
+                        color: #666;
+                        margin-bottom: 8px;
+                    }
+                    
+                    .receipt-terms {
+                        font-size: 9px;
+                        color: #888;
+                        margin-bottom: 2px;
+                    }
+                    
+                    .receipt-return {
+                        font-size: 9px;
+                        color: #888;
+                    }
+                    
+                    @media print {
+                        body {
+                            margin: 0;
+                            padding: 0;
+                        }
+                        
+                        .receipt {
+                            max-width: 100%;
+                            margin: 0;
+                            padding: 10px;
+                        }
+                    }
                 </style>
             </head>
             <body>${receiptHTML}</body>
             </html>
         `);
         printWindow.document.close();
-        printWindow.print();
+        
+        // Wait for content to load, then print
+        printWindow.onload = function() {
+            printWindow.print();
+        };
+        
+        // Fallback: print immediately if onload doesn't fire
+        setTimeout(() => {
+            try {
+                printWindow.print();
+            } catch (e) {
+                console.log("Print error:", e);
+            }
+        }, 500);
     }
-    
-    closeModal();
 }
 
 // Helper function for cart quantity controls
@@ -935,7 +1370,9 @@ const salesService = {
     getFilteredSales,
     renderHistTable,
     exportSalesExcel,
-    exportSalesPDF
+    exportSalesPDF,
+    openBarcodeScanner,
+    closeBarcodeScanner
 };
 
 
