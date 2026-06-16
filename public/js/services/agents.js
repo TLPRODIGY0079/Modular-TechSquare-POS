@@ -773,15 +773,96 @@ export async function renderAgentsGrid(agents) {
 // ============================================================================
 
 /**
+ * Calculate global agent metrics from database
+ * This function provides metrics for the dashboard agent performance card
+ */
+async function getGlobalMetrics(storeId = null) {
+    const DB = getDB();
+    
+    // Filter assignments by store if storeId is provided
+    const assignments = storeId 
+        ? (DB.agentAssignments || []).filter(a => a.store_id === storeId)
+        : (DB.agentAssignments || []);
+    
+    const agents = DB.agents || [];
+    
+    // Calculate metrics
+    const totalAgents = agents.length;
+    
+    // Calculate total owed (sum of agreed amounts for active assignments)
+    const totalOwed = assignments
+        .filter(a => a.status === 'active')
+        .reduce((sum, a) => sum + (a.agreed_amount || 0), 0);
+    
+    // Calculate total collected (sum of agreed amounts for completed assignments)
+    const totalCollected = assignments
+        .filter(a => a.status === 'completed')
+        .reduce((sum, a) => sum + (a.agreed_amount || 0), 0);
+    
+    // Calculate outstanding (active assignments)
+    const totalOutstanding = totalOwed;
+    
+    // Find top agent by total sales
+    let topAgent = null;
+    if (assignments.length > 0) {
+        // Group assignments by agent
+        const agentPerformance = new Map();
+        
+        assignments.forEach(assignment => {
+            const agentId = assignment.agent_id;
+            if (!agentPerformance.has(agentId)) {
+                const agent = agents.find(a => a.id === agentId);
+                agentPerformance.set(agentId, {
+                    name: agent?.name || 'Unknown',
+                    totalSales: 0,
+                    totalProfit: 0,
+                    completedAssignments: 0
+                });
+            }
+            
+            const perf = agentPerformance.get(agentId);
+            if (assignment.status === 'completed') {
+                perf.totalSales += 1;
+                perf.totalProfit += (assignment.agreed_amount || 0);
+                perf.completedAssignments += 1;
+            }
+        });
+        
+        // Find top performer
+        let maxSales = 0;
+        agentPerformance.forEach((perf) => {
+            if (perf.totalSales > maxSales) {
+                maxSales = perf.totalSales;
+                topAgent = perf;
+            }
+        });
+    }
+    
+    return {
+        totalAgents,
+        totalOwed,
+        totalCollected,
+        totalOutstanding,
+        topAgent
+    };
+}
+
+// Make getGlobalMetrics available globally for the loadAgentMetrics function
+if (typeof window !== 'undefined') {
+    window.getGlobalMetrics = getGlobalMetrics;
+}
+
+/**
  * Load agent metrics for dashboard
  * This function relies on getGlobalMetrics from the agent service
  */
 export async function loadAgentMetrics() {
     try {
-        // Use the fixed agent service functions directly
-        if (typeof window.getGlobalMetrics === "undefined") {
-            // Agent service not loaded, skip metrics
-            log("Agent service not available, skipping metrics");
+        const widget = $("agentMetricsWidget");
+        const noAgentData = $("noAgentData");
+        
+        if (!widget) {
+            log("Agent metrics widget not found in dashboard");
             return;
         }
 
@@ -793,45 +874,65 @@ export async function loadAgentMetrics() {
                 ? null
                 : currentUser.storeId;
 
-        // Load global agent metrics using the global function
-        const metrics = await window.getGlobalMetrics(storeId);
+        // Load global agent metrics using the local function
+        const metrics = await getGlobalMetrics(storeId);
+
+        console.log("🔍 Agent Metrics Debug:", metrics);
 
         // Show widget if there are agents
-        if (metrics.totalAgents > 0) {
-            const widget = $("agentMetricsWidget");
-            if (widget) {
-                widget.style.display = "block";
+        if (metrics.totalAgents > 0 || metrics.totalOwed > 0) {
+            widget.style.display = "block";
+            if (noAgentData) noAgentData.style.display = "none";
 
-                // Update metrics
-                $("agentTotalOwed").textContent = money(
-                    metrics.totalOwed,
-                );
-                $("agentTotalCollected").textContent = money(
-                    metrics.totalCollected,
-                );
-                $("agentTotalOutstanding").textContent = money(
-                    metrics.totalOutstanding,
-                );
+            // Update metrics
+            const totalOwedEl = $("agentTotalOwed");
+            const totalCollectedEl = $("agentTotalCollected");
+            const totalOutstandingEl = $("agentTotalOutstanding");
+            
+            if (totalOwedEl) totalOwedEl.textContent = money(metrics.totalOwed);
+            if (totalCollectedEl) totalCollectedEl.textContent = money(metrics.totalCollected);
+            if (totalOutstandingEl) totalOutstandingEl.textContent = money(metrics.totalOutstanding);
 
-                // Show top agent if exists
-                if (metrics.topAgent) {
-                    const topAgentCard = $("topAgentCard");
-                    if (topAgentCard) {
-                        topAgentCard.style.display = "block";
-                        $("topAgentName").textContent =
-                            metrics.topAgent.name;
-                        $("topAgentSales").textContent =
-                            metrics.topAgent.totalSales;
-                        $("topAgentProfit").textContent = money(
-                            metrics.topAgent.totalProfit,
-                        );
-                    }
+            // Show top agent if exists
+            if (metrics.topAgent) {
+                const topAgentCard = $("topAgentCard");
+                if (topAgentCard) {
+                    topAgentCard.style.display = "block";
+                    
+                    const topAgentNameEl = $("topAgentName");
+                    const topAgentSalesEl = $("topAgentSales");
+                    const topAgentProfitEl = $("topAgentProfit");
+                    
+                    if (topAgentNameEl) topAgentNameEl.textContent = metrics.topAgent.name;
+                    if (topAgentSalesEl) topAgentSalesEl.textContent = metrics.topAgent.totalSales;
+                    if (topAgentProfitEl) topAgentProfitEl.textContent = money(metrics.topAgent.totalProfit);
                 }
+            } else {
+                const topAgentCard = $("topAgentCard");
+                if (topAgentCard) topAgentCard.style.display = "none";
             }
+        } else {
+            // No agents, show no data message
+            widget.style.display = "block";
+            if (noAgentData) noAgentData.style.display = "block";
+            
+            // Hide top agent card
+            const topAgentCard = $("topAgentCard");
+            if (topAgentCard) topAgentCard.style.display = "none";
         }
     } catch (error) {
         console.error("Error loading agent metrics:", error);
-        // Hide widget on error
+        // Show no data message on error
+        const widget = $("agentMetricsWidget");
+        const noAgentData = $("noAgentData");
+        
+        if (widget) widget.style.display = "block";
+        if (noAgentData) noAgentData.style.display = "block";
+        
+        const topAgentCard = $("topAgentCard");
+        if (topAgentCard) topAgentCard.style.display = "none";
+    }
+}
         const widget = $("agentMetricsWidget");
         if (widget) {
             widget.style.display = "none";
@@ -1365,6 +1466,7 @@ const agentsService = {
     renderAgentsGrid,
     openNewAgentModal,
     loadAgentMetrics,
+    getGlobalMetrics,
     saveAgent,
     viewAgentDetails,
     editAgent,
@@ -1380,5 +1482,27 @@ const agentsService = {
 if (typeof window !== 'undefined') {
     window.agentsService = agentsService;
 }
+
+// Named exports for specific functions
+export {
+    renderAgents,
+    calculateCommission,
+    handleAgentPaymentMethod,
+    showAgentTransactionForm,
+    confirmAgentTransaction,
+    renderAgentsGrid,
+    openNewAgentModal,
+    loadAgentMetrics,
+    getGlobalMetrics,
+    saveAgent,
+    viewAgentDetails,
+    editAgent,
+    updateAgent,
+    openAssignProductModal,
+    assignProductToAgent,
+    extendAgentDueDate,
+    completeAgentAssignment,
+    renderAgentAssignments
+};
 
 export default agentsService;

@@ -105,13 +105,41 @@ export function renderDashboard() {
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card" id="agentMetricsWidget" style="display: none;">
                 <div class="card-header">
                     <h3 style="font-size: 16px; font-weight: 700;">Agent Performance</h3>
                 </div>
                 <div class="card-body">
-                    <div id="agentMetrics">
-                        <!-- Agent metrics will be rendered here -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                        <div style="text-align: center; padding: 16px; background: var(--bg); border-radius: 8px;">
+                            <div style="font-size: 12px; color: var(--tx2); margin-bottom: 8px;">Total Owed</div>
+                            <div style="font-size: 20px; font-weight: 700; color: var(--ac);" id="agentTotalOwed">K0.00</div>
+                        </div>
+                        <div style="text-align: center; padding: 16px; background: var(--bg); border-radius: 8px;">
+                            <div style="font-size: 12px; color: var(--tx2); margin-bottom: 8px;">Total Collected</div>
+                            <div style="font-size: 20px; font-weight: 700; color: var(--gn);" id="agentTotalCollected">K0.00</div>
+                        </div>
+                        <div style="text-align: center; padding: 16px; background: var(--bg); border-radius: 8px;">
+                            <div style="font-size: 12px; color: var(--tx2); margin-bottom: 8px;">Outstanding</div>
+                            <div style="font-size: 20px; font-weight: 700; color: var(--wn);" id="agentTotalOutstanding">K0.00</div>
+                        </div>
+                    </div>
+                    
+                    <div id="topAgentCard" style="display: none; margin-top: 16px; padding: 16px; background: var(--ac3); border-radius: 8px; border-left: 4px solid var(--ac);">
+                        <div style="font-size: 12px; color: var(--ac); font-weight: 600; margin-bottom: 8px;">🏆 Top Performer</div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 14px; font-weight: 700;" id="topAgentName">-</div>
+                                <div style="font-size: 12px; color: var(--tx2);">Sales: <span id="topAgentSales">0</span></div>
+                            </div>
+                            <div style="font-size: 18px; font-weight: 700; color: var(--ac);" id="topAgentProfit">K0.00</div>
+                        </div>
+                    </div>
+                    
+                    <div id="noAgentData" style="display: none; text-align: center; padding: 32px; color: var(--tx3);">
+                        <i class="fas fa-user-tie" style="font-size: 32px; margin-bottom: 12px; opacity: 0.3;"></i>
+                        <div style="font-size: 14px;">No agent data available</div>
+                        <div style="font-size: 12px;">Agent transactions will appear here</div>
                     </div>
                 </div>
             </div>
