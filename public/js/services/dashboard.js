@@ -298,7 +298,11 @@ export function renderReports() {
 
     // Calculate report metrics
     const todaySales = DB.sales.filter(s => s.date_str === today());
-    const todayCommissions = (DB.commissionRecords || []).filter(c => c.date === today());
+    // More flexible date filtering for commissions - check multiple date formats
+    const todayCommissions = (DB.commissionRecords || []).filter(c => {
+        const commissionDate = c.date || c.created_at?.slice(0, 10);
+        return commissionDate === today();
+    });
 
     // Debug logging for commission data
     console.log("📊 End of Day Report Debug:", {
@@ -306,7 +310,8 @@ export function renderReports() {
         todayCommissionsCount: todayCommissions.length,
         totalCommissionRecords: (DB.commissionRecords || []).length,
         sampleCommission: todayCommissions[0] || "No commissions today",
-        todayDate: today()
+        todayDate: today(),
+        salesWithCommission: todaySales.filter(s => s.commission_rate > 0).length
     });
 
     // Calculate COGS for today's sales
@@ -372,21 +377,52 @@ export function renderReports() {
 
     // Group commissions by user
     const commissionByUser = new Map();
-    todayCommissions.forEach((c) => {
-        const key = c.user_id;
-        if (!commissionByUser.has(key)) {
-            commissionByUser.set(key, {
-                user_name: c.user_name,
-                store_id: c.store_id,
-                total: 0,
-                count: 0
-            });
-        }
-        const user = commissionByUser.get(key);
-        user.total += Number(c.commission_amount || 0);
-        user.count++;
-    });
+    
+    // Primary: Use commission_records if available
+    if (todayCommissions.length > 0) {
+        todayCommissions.forEach((c) => {
+            const key = c.user_id;
+            if (!commissionByUser.has(key)) {
+                commissionByUser.set(key, {
+                    user_name: c.user_name,
+                    store_id: c.store_id,
+                    total: 0,
+                    count: 0
+                });
+            }
+            const user = commissionByUser.get(key);
+            user.total += Number(c.commission_amount || 0);
+            user.count++;
+        });
+    } else {
+        // Fallback: Calculate from sales records with commission_rate
+        todaySales.forEach((s) => {
+            if (s.commission_rate && s.commission_rate > 0) {
+                const commissionAmount = Number(s.commission_rate) * Number(s.quantity || 1);
+                const key = s.user_id;
+                if (!commissionByUser.has(key)) {
+                    commissionByUser.set(key, {
+                        user_name: s.user_name,
+                        store_id: s.store_id,
+                        total: 0,
+                        count: 0
+                    });
+                }
+                const user = commissionByUser.get(key);
+                user.total += commissionAmount;
+                user.count++;
+            }
+        });
+    }
+    
     const commissionUsers = Array.from(commissionByUser.values());
+    
+    // Debug logging for commission breakdown
+    console.log("👥 Commission Breakdown Debug:", {
+        commissionUsersCount: commissionUsers.length,
+        commissionUsers: commissionUsers,
+        usingCommissionRecords: todayCommissions.length > 0
+    });
 
     const payBreakdown = (sales) => {
         const methods = ["cash", "card", "mobile_money", "bank_transfer"];
