@@ -1323,6 +1323,240 @@ async function completeAgentAssignment(assignmentId) {
 }
 
 /**
+ * Return product from agent (when agent can't sell it)
+ */
+async function returnAgentProduct(assignmentId) {
+    const DB = getDB();
+    const sb = getSupabase();
+    const currentUser = getCurrentUser();
+
+    const assignment = DB.agentAssignments?.find(a => a.id === assignmentId);
+    if (!assignment) {
+        toast("Assignment not found", "error");
+        return;
+    }
+
+    if (assignment.status !== 'active') {
+        toast("Only active assignments can be returned", "error");
+        return;
+    }
+
+    const agent = DB.agents?.find(a => a.id === assignment.agent_id);
+    const variant = DB.variants.find(v => v.id === assignment.variant_id);
+    const product = DB.products.find(p => p.id === variant?.product_id);
+
+    if (!agent || !variant || !product) {
+        toast("Agent, product, or variant not found", "error");
+        return;
+    }
+
+    // Check return period (30 days from assignment)
+    const assignmentDate = new Date(assignment.date_taken);
+    const returnDeadline = new Date(assignmentDate);
+    returnDeadline.setDate(returnDeadline.getDate() + 30);
+    const isWithinReturnPeriod = new Date() <= returnDeadline;
+
+    // Open return modal
+    openModal(
+        `Return Product - ${product.name}`,
+        `
+            <div style="padding: 20px;">
+                <div style="background: var(--bg); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="font-weight: 600; margin-bottom: 8px;">Assignment Details:</div>
+                    <div style="font-size: 13px; color: var(--tx2);">
+                        <div>Product: <strong>${esc(product.name)}</strong></div>
+                        <div>Agent: ${esc(agent.name)}</div>
+                        <div>Quantity: ${assignment.qty}</div>
+                        <div>Assigned: ${assignment.date_taken}</div>
+                        <div>Agreed Amount: ${money(assignment.agreed_amount)}</div>
+                    </div>
+                </div>
+
+                ${!isWithinReturnPeriod ? `
+                    <div style="background: var(--wn2); padding: 12px; border-radius: 6px; border-left: 3px solid var(--wn); margin-bottom: 16px;">
+                        <p style="font-size: 13px; color: var(--wn);">
+                            <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                            Return period expired (30 days from ${assignment.date_taken})
+                        </p>
+                    </div>
+                ` : ''}
+
+                <div class="form-group">
+                    <label>Return Reason *</label>
+                    <select class="form-input" id="returnReason" required>
+                        <option value="">Select reason...</option>
+                        <option value="unsold">Could not sell product</option>
+                        <option value="damaged">Product damaged while with agent</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Product Condition *</label>
+                    <select class="form-input" id="returnCondition" required>
+                        <option value="">Select condition...</option>
+                        <option value="new">Same as when taken (new)</option>
+                        <option value="damaged">Damaged</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Penalty Fee (K)</label>
+                    <input type="number" class="form-input" id="penaltyFee" placeholder="Optional penalty amount" min="0" step="0.01">
+                    <div style="font-size: 12px; color: var(--tx2); margin-top: 4px;">Optional - charges agent for return</div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="confirmBalanceDeduction" checked>
+                        Deduct from agent balance/credit limit
+                    </label>
+                </div>
+            </div>
+        `,
+        `
+            <button class="btn btn-outline" onclick="window.closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="confirmReturnBtn">
+                <i class="fas fa-undo"></i> Confirm Return
+            </button>
+        `
+    );
+
+    // Setup confirm button
+    const confirmBtn = document.getElementById('confirmReturnBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => processReturn(assignment, agent, variant, product));
+    }
+}
+
+/**
+ * Process the return transaction
+ */
+async function processReturn(assignment, agent, variant, product) {
+    const DB = getDB();
+    const sb = getSupabase();
+    const currentUser = getCurrentUser();
+
+    const returnReason = document.getElementById('returnReason').value;
+    const returnCondition = document.getElementById('returnCondition').value;
+    const penaltyFee = parseFloat(document.getElementById('penaltyFee').value) || 0;
+    const confirmBalanceDeduction = document.getElementById('confirmBalanceDeduction').checked;
+
+    if (!returnReason || !returnCondition) {
+        toast("Please select return reason and condition", "error");
+        return;
+    }
+
+    try {
+        // Only restore inventory if product is in acceptable condition
+        const canRestoreInventory = returnCondition === 'new';
+        
+        if (canRestoreInventory) {
+            // Restore inventory
+            const newQty = variant.qty + assignment.qty;
+            const variantUpdate = {
+                qty: newQty,
+                updated_at: now()
+            };
+
+            if (sb) {
+                try {
+                    const { error: variantError } = await sb.from("variants").update(variantUpdate).eq("id", variant.id);
+                    if (variantError) throw variantError;
+                } catch (supabaseError) {
+                    console.error("Supabase variant update failed, queueing for sync:", supabaseError);
+                    // Queue for offline sync
+                    const offlineDB = window.offlineDB;
+                    if (offlineDB) {
+                        await offlineDB.queueOperation('update', 'variants', variantUpdate, variant.id);
+                    }
+                }
+            }
+
+            // Update local variant
+            const variantIndex = DB.variants.findIndex(v => v.id === variant.id);
+            if (variantIndex !== -1) {
+                DB.variants[variantIndex].qty = newQty;
+            }
+        }
+
+        // Calculate balance/credit limit impact
+        let balanceDeduction = 0;
+        if (confirmBalanceDeduction && returnCondition === 'damaged') {
+            balanceDeduction = penaltyFee + assignment.agreed_amount;
+        } else if (confirmBalanceDeduction && penaltyFee > 0) {
+            balanceDeduction = penaltyFee;
+        }
+
+        // Update agent balance if needed
+        if (balanceDeduction > 0 && agent) {
+            const newBalance = (agent.balance || 0) + balanceDeduction;
+            const agentUpdate = {
+                balance: newBalance,
+                updated_at: now()
+            };
+
+            if (sb) {
+                try {
+                    const { error: agentError } = await sb.from("agents").update(agentUpdate).eq("id", agent.id);
+                    if (agentError) throw agentError;
+                } catch (supabaseError) {
+                    console.error("Supabase agent update failed, queueing for sync:", supabaseError);
+                    const offlineDB = window.offlineDB;
+                    if (offlineDB) {
+                        await offlineDB.queueOperation('update', 'agents', agentUpdate, agent.id);
+                    }
+                }
+            }
+
+            // Update local agent
+            const agentIndex = DB.agents.findIndex(a => a.id === agent.id);
+            if (agentIndex !== -1) {
+                DB.agents[agentIndex].balance = newBalance;
+            }
+        }
+
+        // Update assignment status
+        const updates = {
+            status: 'returned',
+            returned_at: now(),
+            return_reason: returnReason,
+            return_condition: returnCondition,
+            penalty_fee: penaltyFee,
+            balance_impact: balanceDeduction,
+            updated_at: now()
+        };
+
+        if (sb) {
+            try {
+                const { error: assignError } = await sb.from("agent_assignments").update(updates).eq("id", assignment.id);
+                if (assignError) throw assignError;
+            } catch (supabaseError) {
+                console.error("Supabase assignment update failed, queueing for sync:", supabaseError);
+                const offlineDB = window.offlineDB;
+                if (offlineDB) {
+                    await offlineDB.queueOperation('update', 'agent_assignments', updates, assignment.id);
+                }
+            }
+        }
+
+        // Update local assignment
+        const index = DB.agentAssignments.findIndex(a => a.id === assignment.id);
+        if (index !== -1) {
+            DB.agentAssignments[index] = { ...DB.agentAssignments[index], ...updates };
+        }
+
+        toast(
+            `Product returned successfully. ${canRestoreInventory ? 'Inventory restored.' : 'Inventory not restored (damaged product)'} ${balanceDeduction > 0 ? `Balance deduction: ${money(balanceDeduction)}` : ''}`,
+            "success"
+        );
+        closeModal();
+        renderAgentAssignments();
+    } catch (error) {
+        toast("Failed to process return: " + error.message, "error");
+    }
+}
+
+/**
  * Render agent assignments section
  */
 function renderAgentAssignments() {
@@ -1336,8 +1570,9 @@ function renderAgentAssignments() {
         currentUser.role === "admin" || a.store_id === currentUser.storeId
     );
 
-    const activeAssignments = assignments.filter(a => a.status !== 'completed');
+    const activeAssignments = assignments.filter(a => a.status !== 'completed' && a.status !== 'returned');
     const completedAssignments = assignments.filter(a => a.status === 'completed');
+    const returnedAssignments = assignments.filter(a => a.status === 'returned');
 
     container.innerHTML = `
         <div class="card">
@@ -1387,6 +1622,9 @@ function renderAgentAssignments() {
                                         <td>
                                             <button class="btn btn-sm btn-outline" onclick="window.agentsService.extendAgentDueDate('${a.id}')" title="Extend Due Date">
                                                 <i class="fas fa-clock"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline" onclick="window.agentsService.returnAgentProduct('${a.id}')" title="Return Product">
+                                                <i class="fas fa-undo"></i>
                                             </button>
                                             <button class="btn btn-sm btn-primary" onclick="window.agentsService.completeAgentAssignment('${a.id}')" title="Complete Assignment">
                                                 <i class="fas fa-check"></i>
@@ -1446,6 +1684,64 @@ function renderAgentAssignments() {
                     </table>
                 `}
             </div>
+
+        <div class="card" style="margin-top:20px">
+            <div class="card-header">
+                <h3>Returned Assignments</h3>
+            </div>
+            <div class="card-body np">
+                ${returnedAssignments.length === 0 ? `
+                    <div style="padding:40px;text-align:center;color:var(--tx2)">
+                        <i class="fas fa-undo" style="font-size:32px;margin-bottom:12px;opacity:0.3"></i>
+                        <p>No returned assignments</p>
+                    </div>
+                ` : `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Agent</th>
+                                <th>Date Taken</th>
+                                <th>Returned</th>
+                                <th>Reason</th>
+                                <th>Condition</th>
+                                <th>Penalty</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${returnedAssignments.map(a => {
+                                const agent = DB.agents?.find(ag => ag.id === a.agent_id);
+                                return `
+                                    <tr>
+                                        <td>
+                                            <strong>${esc(a.product_name)}</strong>
+                                            <div style="font-size:12px;color:var(--tx2)">${esc(a.variant_label)}</div>
+                                        </td>
+                                        <td>${esc(agent?.name || 'Unknown')}</td>
+                                        <td>${a.date_taken}</td>
+                                        <td>${a.returned_at ? new Date(a.returned_at).toLocaleDateString() : '-'}</td>
+                                        <td>
+                                            <span class="badge ${a.return_reason === 'damaged' ? 'badge-red' : 'badge-orange'}">
+                                                ${a.return_reason === 'damaged' ? 'Damaged' : 'Unsold'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge ${a.return_condition === 'new' ? 'badge-green' : 'badge-red'}">
+                                                ${a.return_condition === 'new' ? 'Same condition' : 'Damaged'}
+                                            </span>
+                                        </td>
+                                        <td>${a.penalty_fee ? money(a.penalty_fee) : '-'}</td>
+                                        <td>
+                                            <span class="badge badge-gray">Returned</span>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `}
+            </div>
         </div>
     `;
 }
@@ -1469,6 +1765,7 @@ const agentsService = {
     assignProductToAgent,
     extendAgentDueDate,
     completeAgentAssignment,
+    returnAgentProduct,
     renderAgentAssignments
 };
 
