@@ -254,9 +254,9 @@ export async function renderTransfers() {
     }
 
     try {
-        // Get transfer records (approved stock requests)
-        const transfers = stockRequests
-            .filter((r) => r.status === "approved" || r.status === "completed")
+        // Get transfer records from stock_transfers table
+        const transfers = (DB.stockTransfers || [])
+            .filter((r) => r.status === "approved" || r.status === "completed" || r.status === "pending")
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         const html = `
@@ -301,7 +301,7 @@ export async function renderTransfers() {
               <i class="fas fa-clock"></i>
             </div>
             <div>
-              <div class="stat-value">${transfers.filter(t => t.status === 'approved').length}</div>
+              <div class="stat-value">${transfers.filter(t => t.status === 'approved' || t.status === 'pending').length}</div>
               <div class="stat-label">In Transit</div>
             </div>
           </div>
@@ -354,6 +354,14 @@ export async function renderTransfers() {
                       const variant = DB.variants.find(v => v.id === transfer.variant_id);
                       const product = variant ? DB.products.find(p => p.id === variant.product_id) : null;
                       
+                      // Get store names
+                      const getStoreName = (storeId) => {
+                        if (storeId === WAREHOUSE_ID) return 'Warehouse';
+                        if (storeId === STORE1_ID) return 'Store 1';
+                        if (storeId === STORE2_ID) return 'Store 2';
+                        return 'Unknown Store';
+                      };
+                      
                       return `
                         <tr>
                           <td>${new Date(transfer.created_at).toLocaleDateString()}</td>
@@ -364,8 +372,8 @@ export async function renderTransfers() {
                             </div>
                           </td>
                           <td><span class="badge badge-blue">${transfer.quantity}</span></td>
-                          <td>Warehouse</td>
-                          <td>${transfer.store_name}</td>
+                          <td>${getStoreName(transfer.from_store_id)}</td>
+                          <td>${getStoreName(transfer.to_store_id)}</td>
                           <td>
                             <span class="badge ${
                               transfer.status === 'completed' ? 'badge-green' : 
@@ -693,7 +701,7 @@ function renderRequestsTab() {
  */
 function renderTransfersTab() {
     const DB = getDB();
-    const transfers = stockRequests
+    const transfers = (DB.stockTransfers || [])
         .filter((r) => r.status === "approved")
         .sort(
             (a, b) =>
@@ -1589,7 +1597,7 @@ export async function submitStockRequest(e) {
 }
 
 /**
- * Update transfer status (for stock_transfers table - legacy)
+ * Update transfer status (for stock_transfers table)
  */
 export async function updateTransfer(id, status) {
     const sb = getSupabase();
@@ -1602,7 +1610,7 @@ export async function updateTransfer(id, status) {
 }
 
 /**
- * Complete transfer (for stock_transfers table - legacy)
+ * Complete transfer (for stock_transfers table)
  */
 export async function completeTransfer(id) {
     const DB = getDB();
@@ -1612,10 +1620,10 @@ export async function completeTransfer(id) {
     if (!tr) return;
     const srcVar = DB.variants.find(
         (v) =>
-            v.sku === tr.sku && v.store_id === tr.source_store_id,
+            v.id === tr.variant_id && v.store_id === tr.from_store_id,
     );
     const dstVar = DB.variants.find(
-        (v) => v.sku === tr.sku && v.store_id === tr.dest_store_id,
+        (v) => v.id === tr.variant_id && v.store_id === tr.to_store_id,
     );
     if (srcVar) {
         await sb
@@ -1633,7 +1641,7 @@ export async function completeTransfer(id) {
     }
     await sb
         .from("stock_transfers")
-        .update({ status: "completed", updated_at: now() })
+        .update({ status: "completed", updated_at: now(), completed_at: now() })
         .eq("id", id);
     await loadDB();
     toast("Transfer completed", "success");
