@@ -933,12 +933,6 @@ export async function loadAgentMetrics() {
         if (topAgentCard) topAgentCard.style.display = "none";
     }
 }
-        const widget = $("agentMetricsWidget");
-        if (widget) {
-            widget.style.display = "none";
-        }
-    }
-}
 
 // ============================================================================
 // HELPER FUNCTIONS
