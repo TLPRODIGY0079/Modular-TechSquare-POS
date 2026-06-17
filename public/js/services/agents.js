@@ -1475,28 +1475,7 @@ const agentsService = {
 // Make functions available globally for onclick handlers
 if (typeof window !== 'undefined') {
     window.agentsService = agentsService;
+    window.getGlobalMetrics = getGlobalMetrics;
 }
-
-// Named exports for specific functions
-export {
-    renderAgents,
-    calculateCommission,
-    handleAgentPaymentMethod,
-    showAgentTransactionForm,
-    confirmAgentTransaction,
-    renderAgentsGrid,
-    openNewAgentModal,
-    loadAgentMetrics,
-    getGlobalMetrics,
-    saveAgent,
-    viewAgentDetails,
-    editAgent,
-    updateAgent,
-    openAssignProductModal,
-    assignProductToAgent,
-    extendAgentDueDate,
-    completeAgentAssignment,
-    renderAgentAssignments
-};
 
 export default agentsService;
