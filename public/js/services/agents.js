@@ -847,7 +847,7 @@ async function getGlobalMetrics(storeId = null) {
     };
 }
 
-// Make getGlobalMetrics available globally for the loadAgentMetrics function
+
 if (typeof window !== 'undefined') {
     window.getGlobalMetrics = getGlobalMetrics;
 }
@@ -868,7 +868,7 @@ export async function loadAgentMetrics() {
 
         const currentUser = getCurrentUser();
 
-        // Get store context
+
         const storeId =
             currentUser.role === "admin"
                 ? null
