@@ -193,45 +193,71 @@ function openBarcodeScanner() {
     
     overlay.style.display = "flex";
     
-    // Initialize scanner
-    if (typeof Html5Qrcode !== 'undefined') {
-        // Clear previous instance if exists
-        if (html5QrcodeScanner) {
-            try {
-                html5QrcodeScanner.clear();
-            } catch (e) {
-                console.log("Scanner clear error:", e);
-            }
-        }
-        
-        html5QrcodeScanner = new Html5Qrcode("barcodeReader");
-        
-        const config = {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            facingMode: "environment" // Use back camera
-        };
-        
-        html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            config,
-            onBarcodeDetected,
-            (errorMessage) => {
-                // Ignore frequent scanning errors
-                if (!errorMessage.includes('No barcode')) {
-                    console.log("Barcode scan error:", errorMessage);
-                }
-            }
-        ).catch(err => {
-            console.error("Scanner start error:", err);
-            toast("Failed to start camera: " + err.message, "error");
-            closeBarcodeScanner();
-        });
-    } else {
+    // Check if library is loaded
+    if (typeof Html5Qrcode === 'undefined') {
         toast("Barcode scanner library not loaded", "error");
         closeBarcodeScanner();
+        return;
     }
+    
+    // Check camera permissions first
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast("Camera not supported on this device", "error");
+        closeBarcodeScanner();
+        return;
+    }
+    
+    // Clear previous instance if exists
+    if (html5QrcodeScanner) {
+        try {
+            html5QrcodeScanner.clear();
+        } catch (e) {
+            console.log("Scanner clear error:", e);
+        }
+    }
+    
+    html5QrcodeScanner = new Html5Qrcode("barcodeReader");
+    
+    const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+    };
+    
+    // Request camera permissions and start scanner
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => {
+            // Stop the test stream
+            stream.getTracks().forEach(track => track.stop());
+            
+            // Start the barcode scanner with back camera
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                config,
+                onBarcodeDetected,
+                (errorMessage) => {
+                    // Ignore frequent scanning errors
+                    if (!errorMessage.includes('No barcode') && !errorMessage.includes('QR code')) {
+                        console.log("Barcode scan error:", errorMessage);
+                    }
+                }
+            ).catch(err => {
+                console.error("Scanner start error:", err);
+                toast("Failed to start camera: " + err.message, "error");
+                closeBarcodeScanner();
+            });
+        })
+        .catch(err => {
+            console.error("Camera permission error:", err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                toast("Camera permission denied. Please allow camera access in your browser settings.", "error");
+            } else if (err.name === 'NotFoundError') {
+                toast("No camera found on this device.", "error");
+            } else {
+                toast("Camera error: " + err.message, "error");
+            }
+            closeBarcodeScanner();
+        });
     
     // Setup close button
     const closeBtn = document.getElementById("barcodeScannerClose");
