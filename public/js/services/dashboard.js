@@ -17,12 +17,15 @@ export function renderDashboard() {
     // Calculate dashboard metrics
     // For cashiers, only show their store's data; for admins, show all stores
     const userStoreId = user?.storeId;
-    const todaySales = user.role === "admin" 
+    const todaySales = user.role === "admin"
         ? DB.sales.filter(s => s.date_str === today())
         : DB.sales.filter(s => s.date_str === today() && s.store_id === userStoreId);
     const totalRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
     const totalProfit = todaySales.reduce((sum, s) => sum + (s.profit || 0), 0);
     const transactions = todaySales.length;
+    const totalCommission = user.role === "admin"
+        ? DB.commissionRecords.reduce((sum, c) => sum + (c.commission_amount || 0), 0)
+        : DB.commissionRecords.filter(c => c.store_id === userStoreId).reduce((sum, c) => sum + (c.commission_amount || 0), 0);
     const lowStockCount = user.role === "admin"
         ? DB.variants.filter(v => v.qty < 10 && v.is_active).length
         : DB.variants.filter(v => v.qty < 10 && v.is_active && v.store_id === userStoreId).length;
@@ -64,11 +67,11 @@ export function renderDashboard() {
             </div>
 
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--dn2); color: var(--dn);">
-                    <i class="fas fa-boxes-stacked"></i>
+                <div class="stat-icon" style="background: var(--ac3); color: var(--ac);">
+                    <i class="fas fa-coins"></i>
                 </div>
-                <div class="stat-value">${lowStockCount}</div>
-                <div class="stat-label">Low Stock Items</div>
+                <div class="stat-value">${money(totalCommission)}</div>
+                <div class="stat-label">Total Commission</div>
             </div>
         </div>
 
