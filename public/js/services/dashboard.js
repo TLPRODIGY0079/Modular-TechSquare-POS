@@ -44,7 +44,8 @@ export function renderDashboard() {
                 <div class="stat-value">${money(totalRevenue)}</div>
                 <div class="stat-label">Today's Revenue</div>
             </div>
-            
+
+            ${user.role !== 'cashier' ? `
             <div class="stat-card">
                 <div class="stat-icon" style="background: var(--gn2); color: var(--gn);">
                     <i class="fas fa-dollar-sign"></i>
@@ -52,7 +53,8 @@ export function renderDashboard() {
                 <div class="stat-value">${money(totalProfit)}</div>
                 <div class="stat-label">Today's Profit</div>
             </div>
-            
+            ` : ''}
+
             <div class="stat-card">
                 <div class="stat-icon" style="background: var(--wn2); color: var(--wn);">
                     <i class="fas fa-receipt"></i>
@@ -60,7 +62,7 @@ export function renderDashboard() {
                 <div class="stat-value">${transactions}</div>
                 <div class="stat-label">Transactions</div>
             </div>
-            
+
             <div class="stat-card">
                 <div class="stat-icon" style="background: var(--dn2); color: var(--dn);">
                     <i class="fas fa-boxes-stacked"></i>
@@ -71,6 +73,7 @@ export function renderDashboard() {
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-top: 24px;">
+            ${user.role !== 'cashier' ? `
             <div class="card">
                 <div class="card-header">
                     <h3 style="font-size: 16px; font-weight: 700;">Financial Summary</h3>
@@ -104,6 +107,7 @@ export function renderDashboard() {
                     </div>
                 </div>
             </div>
+            ` : ''}
 
             <div class="card" id="agentMetricsWidget" style="display: none;">
                 <div class="card-header">
