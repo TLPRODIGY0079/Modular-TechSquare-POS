@@ -421,11 +421,6 @@ function manageVariants(productId) {
     const user = getCurrentUser();
     const isAdmin = user.role === "admin" || user.role === "store_manager";
 
-    if (!isAdmin) {
-        toast("Access denied. Only admins can manage variants.", "error");
-        return;
-    }
-
     const DB = getDB();
     const product = DB.products.find(p => p.id === productId);
     const variants = DB.variants.filter(v => v.product_id === productId);
@@ -435,17 +430,21 @@ function manageVariants(productId) {
         return;
     }
 
+    // Filter variants by store for non-admin users
+    const userStoreId = user?.storeId;
+    const visibleVariants = isAdmin ? variants : variants.filter(v => v.store_id === userStoreId);
+
     openModal(
         `Manage Variants - ${product.name}`,
         `
             <div class="variants-list">
                 <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                    <h4>Current Variants (${variants.length})</h4>
+                    <h4>Current Variants (${visibleVariants.length})</h4>
                     <button class="btn btn-sm btn-primary" id="addVariantBtn">
                         <i class="fas fa-plus"></i> Add Variant
                     </button>
                 </div>
-                ${variants.length === 0 ? `
+                ${visibleVariants.length === 0 ? `
                     <div class="empty-state">
                         <i class="fas fa-cubes"></i>
                         <p>No variants yet. Add your first variant!</p>
@@ -464,7 +463,7 @@ function manageVariants(productId) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${variants.map(variant => `
+                            ${visibleVariants.map(variant => `
                                 <tr>
                                     <td>${esc(variant.sku)}</td>
                                     <td>${esc(variant.color || '-')}</td>
@@ -582,6 +581,8 @@ function addVariant(productId) {
 async function saveNewVariant(productId) {
     const DB = getDB();
     const sb = getSupabase();
+    const user = getCurrentUser();
+    const userStoreId = user?.storeId;
 
     const sku = document.getElementById("variantSku").value.trim();
     const color = document.getElementById("variantColor").value.trim();
@@ -614,6 +615,7 @@ async function saveNewVariant(productId) {
             qty,
             commission_rate: commissionRate,
             is_active: isActive,
+            store_id: userStoreId, // Assign to user's store
             created_at: now(),
             updated_at: now()
         };
@@ -646,12 +648,7 @@ async function saveNewVariant(productId) {
 // Edit variant
 function editVariant(variantId) {
     const user = getCurrentUser();
-    const isAdmin = user.role === "admin" || user.role === "store_manager";
-
-    if (!isAdmin) {
-        toast("Access denied. Only admins can edit variants.", "error");
-        return;
-    }
+    const userStoreId = user?.storeId;
 
     const DB = getDB();
     const variant = DB.variants.find(v => v.id === variantId);
@@ -659,6 +656,13 @@ function editVariant(variantId) {
 
     if (!variant) {
         toast("Variant not found", "error");
+        return;
+    }
+
+    // Check if user has access to this variant (admin/store_manager or owns store variant)
+    const isAdmin = user.role === "admin" || user.role === "store_manager";
+    if (!isAdmin && variant.store_id !== userStoreId) {
+        toast("Access denied. You can only edit variants from your store.", "error");
         return;
     }
 
