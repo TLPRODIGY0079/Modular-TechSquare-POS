@@ -11,13 +11,7 @@ import { STORE1_ID, STORE2_ID, WAREHOUSE_ID } from '../config.js';
 // COMMISSION CALCULATION
 // ============================================================================
 
-/**
- * Calculate commission for a sale
- * @param {Array} cartItems - Array of cart items
- * @param {string} receiptNo - Receipt number
- * @param {string} storeId - Store ID
- * @param {number} totalAmount - Total amount of the sale
- */
+// 💰 Calculate commission for a sale
 export async function calculateCommission(
     cartItems,
     receiptNo,
@@ -141,14 +135,7 @@ export async function calculateCommission(
 // AGENT PAYMENT METHOD HANDLER
 // ============================================================================
 
-/**
- * Handle agent payment method
- * @param {string} storeId - Store ID
- * @param {number} total - Total amount
- * @param {number} discount - Discount amount
- * @param {number} subtotal - Subtotal amount
- * @returns {boolean|object} - False if fallback to cash, or transaction result
- */
+// 💳 Handle agent payment method
 export async function handleAgentPaymentMethod(
     storeId,
     total,
@@ -169,14 +156,7 @@ export async function handleAgentPaymentMethod(
     }
 }
 
-/**
- * Show agent transaction form
- * @param {object} agent - Agent object
- * @param {string} storeId - Store ID
- * @param {number} total - Total amount
- * @param {number} discount - Discount amount
- * @param {number} subtotal - Subtotal amount
- */
+// 📋 Show agent transaction form
 export async function showAgentTransactionForm(
     agent,
     storeId,
@@ -257,14 +237,7 @@ export async function showAgentTransactionForm(
     );
 }
 
-/**
- * Confirm agent transaction
- * @param {string} agentId - Agent ID
- * @param {string} storeId - Store ID
- * @param {number} total - Total amount
- * @param {number} discount - Discount amount
- * @param {number} subtotal - Subtotal amount
- */
+// ✅ Confirm agent transaction
 export async function confirmAgentTransaction(
     agentId,
     storeId,
@@ -289,9 +262,7 @@ export async function confirmAgentTransaction(
 // AGENT MANAGEMENT UI
 // ============================================================================
 
-/**
- * Render the agents page
- */
+// 👥 Render the agents page
 export async function renderAgents() {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -470,9 +441,7 @@ export async function renderAgents() {
     }
 }
 
-/**
- * Open new agent modal
- */
+// ➕ Open new agent modal
 function openNewAgentModal() {
     const currentUser = getCurrentUser();
 
@@ -531,9 +500,7 @@ function openNewAgentModal() {
     }
 }
 
-/**
- * Save new agent
- */
+// 💾 Save new agent
 async function saveAgent() {
     const DB = getDB();
     const sb = getSupabase();
@@ -585,9 +552,7 @@ async function saveAgent() {
     }
 }
 
-/**
- * View agent details
- */
+// 👁 View agent details
 function viewAgentDetails(agentId) {
     const DB = getDB();
     const agent = DB.agents?.find(a => a.id === agentId);
@@ -636,9 +601,7 @@ function viewAgentDetails(agentId) {
     );
 }
 
-/**
- * Edit agent
- */
+// ✏ Edit agent
 function editAgent(agentId) {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -700,9 +663,7 @@ function editAgent(agentId) {
     }
 }
 
-/**
- * Update agent
- */
+// 🔄 Update agent
 async function updateAgent(agentId) {
     const DB = getDB();
     const sb = getSupabase();
@@ -751,10 +712,7 @@ async function updateAgent(agentId) {
     }
 }
 
-/**
- * Render the agents grid
- * @param {Array} agents - Array of agent objects
- */
+// 📊 Render the agents grid
 export async function renderAgentsGrid(agents) {
     const grid = $("agentsGrid");
     if (!grid) return;
@@ -772,10 +730,7 @@ export async function renderAgentsGrid(agents) {
 // AGENT METRICS
 // ============================================================================
 
-/**
- * Calculate global agent metrics from database
- * This function provides metrics for the dashboard agent performance card
- */
+// 📈 Calculate global agent metrics from database
 async function getGlobalMetrics(storeId = null) {
     const DB = getDB();
     
@@ -852,10 +807,7 @@ if (typeof window !== 'undefined') {
     window.getGlobalMetrics = getGlobalMetrics;
 }
 
-/**
- * Load agent metrics for dashboard
- * This function relies on getGlobalMetrics from the agent service
- */
+// 📊 Load agent metrics for dashboard
 export async function loadAgentMetrics() {
     try {
         const widget = $("agentMetricsWidget");
@@ -938,18 +890,12 @@ export async function loadAgentMetrics() {
 // HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Check if the application is online
- * @returns {boolean}
- */
+// 🌐 Check if the application is online
 function isOnline() {
     return navigator.onLine;
 }
 
-/**
- * Log message to console with prefix
- * @param {string} message - Message to log
- */
+// 📝 Log message to console with prefix
 function log(message) {
     console.log(`[AgentService] ${message}`);
 }
@@ -958,9 +904,7 @@ function log(message) {
 // AGENT ASSIGNMENT FUNCTIONS (CONSIGNMENT)
 // ============================================================================
 
-/**
- * Open modal to assign product to agent
- */
+// 📦 Open modal to assign product to agent
 function openAssignProductModal() {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -1053,9 +997,7 @@ function openAssignProductModal() {
     }
 }
 
-/**
- * Assign product to agent
- */
+// ✍ Assign product to agent
 async function assignProductToAgent() {
     const DB = getDB();
     const sb = getSupabase();
@@ -1170,9 +1112,7 @@ async function assignProductToAgent() {
     }
 }
 
-/**
- * Extend due date for assignment
- */
+// 📅 Extend due date for assignment
 async function extendAgentDueDate(assignmentId) {
     const DB = getDB();
     const sb = getSupabase();
@@ -1212,9 +1152,7 @@ async function extendAgentDueDate(assignmentId) {
     }
 }
 
-/**
- * Complete agent assignment
- */
+// ✅ Complete agent assignment
 async function completeAgentAssignment(assignmentId) {
     const DB = getDB();
     const sb = getSupabase();
@@ -1322,9 +1260,7 @@ async function completeAgentAssignment(assignmentId) {
     }
 }
 
-/**
- * Return product from agent (when agent can't sell it)
- */
+// ↩ Return product from agent (when agent can't sell it)
 async function returnAgentProduct(assignmentId) {
     const DB = getDB();
     const sb = getSupabase();
@@ -1428,9 +1364,7 @@ async function returnAgentProduct(assignmentId) {
     }
 }
 
-/**
- * Process the return transaction
- */
+// ⚙ Process the return transaction
 async function processReturn(assignment, agent, variant, product) {
     const DB = getDB();
     const sb = getSupabase();
@@ -1556,9 +1490,7 @@ async function processReturn(assignment, agent, variant, product) {
     }
 }
 
-/**
- * Render agent assignments section
- */
+// 📋 Render agent assignments section
 function renderAgentAssignments() {
     const DB = getDB();
     const currentUser = getCurrentUser();

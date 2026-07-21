@@ -12,9 +12,7 @@ import { STORE1_ID, STORE2_ID, WAREHOUSE_ID } from '../config.js';
 // Stock request storage (synced with Supabase)
 let stockRequests = [];
 
-/**
- * Load stock requests from Supabase or localStorage
- */
+// 📥 Load stock requests from Supabase or localStorage
 export async function loadStockRequests() {
     const sb = getSupabase();
     try {
@@ -35,9 +33,7 @@ export async function loadStockRequests() {
     }
 }
 
-/**
- * Save a stock request to Supabase or localStorage
- */
+// 💾 Save a stock request to Supabase or localStorage
 export async function saveStockRequest(request) {
     const sb = getSupabase();
     try {
@@ -54,9 +50,7 @@ export async function saveStockRequest(request) {
     }
 }
 
-/**
- * Update a stock request in Supabase or localStorage
- */
+// 🔄 Update a stock request in Supabase or localStorage
 export async function updateStockRequest(id, updates) {
     const sb = getSupabase();
     try {
@@ -76,9 +70,7 @@ export async function updateStockRequest(id, updates) {
 // Warehouse state
 let warehouseCurrentTab = "inventory";
 
-/**
- * Main warehouse render function
- */
+// 🏭 Main warehouse render function
 export async function renderWarehouse() {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -219,18 +211,14 @@ export async function renderWarehouse() {
     }
 }
 
-/**
- * Switch warehouse tabs
- */
+// 🔄 Switch warehouse tabs
 export function switchWarehouseTab(tabName) {
     warehouseCurrentTab = tabName;
     document.getElementById("warehouseTabContent").innerHTML =
         renderWarehouseTabContent();
 }
 
-/**
- * Render transfers page (navigation route)
- */
+// 📋 Render transfers page (navigation route)
 export async function renderTransfers() {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -419,9 +407,7 @@ export async function renderTransfers() {
     }
 }
 
-/**
- * Render tab content
- */
+// 📑 Render tab content
 function renderWarehouseTabContent() {
     switch (warehouseCurrentTab) {
         case "inventory":
@@ -435,9 +421,7 @@ function renderWarehouseTabContent() {
     }
 }
 
-/**
- * Render inventory tab
- */
+// 📦 Render inventory tab
 function renderInventoryTab() {
     const DB = getDB();
     const products = DB.products.filter((p) => p.active !== false);
@@ -524,9 +508,7 @@ function renderInventoryTab() {
   `;
 }
 
-/**
- * Delete warehouse product (soft delete by setting active=false)
- */
+// 🗑 Delete warehouse product (soft delete by setting active=false)
 export async function deleteWarehouseProduct(variantId) {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -600,9 +582,7 @@ export async function deleteWarehouseProduct(variantId) {
     );
 }
 
-/**
- * Render requests tab
- */
+// 📬 Render requests tab
 function renderRequestsTab() {
     const DB = getDB();
     const requests = stockRequests.sort(
@@ -688,9 +668,7 @@ function renderRequestsTab() {
   `;
 }
 
-/**
- * Render transfers tab
- */
+// 🚚 Render transfers tab
 function renderTransfersTab() {
     const DB = getDB();
     const transfers = (DB.stockTransfers || [])
@@ -758,9 +736,7 @@ function renderTransfersTab() {
   `;
 }
 
-/**
- * Find or create a variant at the destination store for stock transfers
- */
+// 🔍 Find or create a variant at the destination store for stock transfers
 export async function findOrCreateDestinationVariant(
     sourceVariant,
     destStoreId,
@@ -819,9 +795,7 @@ export async function findOrCreateDestinationVariant(
     return newVariant;
 }
 
-/**
- * Approve stock request
- */
+// ✅ Approve stock request
 export async function approveStockRequest(requestId) {
     const DB = getDB();
     const currentUser = getCurrentUser();
@@ -908,9 +882,7 @@ export async function approveStockRequest(requestId) {
     }
 }
 
-/**
- * Reject stock request
- */
+// ❌ Reject stock request
 export async function rejectStockRequest(requestId) {
     const currentUser = getCurrentUser();
 
@@ -951,9 +923,7 @@ export async function rejectStockRequest(requestId) {
 // Add stock mode state
 let addStockMode = "existing";
 
-/**
- * Open add stock modal
- */
+// ➕ Open add stock modal
 export function openAddStockModal() {
     const DB = getDB();
 
@@ -1056,9 +1026,7 @@ export function openAddStockModal() {
     );
 }
 
-/**
- * Toggle add stock mode (existing vs new product)
- */
+// 🔄 Toggle add stock mode (existing vs new product)
 export function toggleAddStockMode(mode) {
     addStockMode = mode;
     const existingFields = document.getElementById(
@@ -1087,9 +1055,7 @@ export function toggleAddStockMode(mode) {
     document.getElementById("addStockInfo").textContent = "";
 }
 
-/**
- * Update add stock info display
- */
+// ℹ Update add stock info display
 export function updateAddStockInfo() {
     const select = document.getElementById("addStockVariantId");
     const option = select.options[select.selectedIndex];
@@ -1102,9 +1068,7 @@ export function updateAddStockInfo() {
     }
 }
 
-/**
- * Process add stock form submission
- */
+// ⚙ Process add stock form submission
 export async function processAddStock(e) {
     e.preventDefault();
 
@@ -1286,9 +1250,7 @@ export async function processAddStock(e) {
     }
 }
 
-/**
- * Open transfer modal
- */
+// 🚚 Open transfer modal
 export function openTransferModal() {
     const DB = getDB();
 
@@ -1351,9 +1313,7 @@ export function openTransferModal() {
     );
 }
 
-/**
- * Update transfer stock info display
- */
+// ℹ Update transfer stock info display
 export function updateTransferStock() {
     const select = document.getElementById("transferVariantId");
     const option = select.options[select.selectedIndex];
@@ -1370,9 +1330,7 @@ export function updateTransferStock() {
     }
 }
 
-/**
- * Process transfer form submission
- */
+// ⚙ Process transfer form submission
 export async function processTransfer(e) {
     e.preventDefault();
 
@@ -1463,9 +1421,7 @@ export async function processTransfer(e) {
     }
 }
 
-/**
- * Cashier: Open stock request modal
- */
+// 📬 Cashier: Open stock request modal
 export function openStockRequestModal() {
     const DB = getDB();
 
@@ -1515,9 +1471,7 @@ export function openStockRequestModal() {
     );
 }
 
-/**
- * Submit stock request
- */
+// 📤 Submit stock request
 export async function submitStockRequest(e) {
     e.preventDefault();
 
@@ -1588,9 +1542,7 @@ export async function submitStockRequest(e) {
     }
 }
 
-/**
- * Update transfer status (for stock_transfers table)
- */
+// 🔄 Update transfer status (for stock_transfers table)
 export async function updateTransfer(id, status) {
     const sb = getSupabase();
     await sb
@@ -1601,9 +1553,7 @@ export async function updateTransfer(id, status) {
     toast("Transfer " + status, "success");
 }
 
-/**
- * Complete transfer (for stock_transfers table)
- */
+// ✅ Complete transfer (for stock_transfers table)
 export async function completeTransfer(id) {
     const DB = getDB();
     const sb = getSupabase();
