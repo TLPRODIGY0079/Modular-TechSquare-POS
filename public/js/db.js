@@ -139,6 +139,12 @@ async function loadDB() {
     try {
         log("Loading database...");
 
+        // Show loading indicator
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+        }
+
         // Load from IndexedDB first (offline support)
         if (offlineDB && offlineDB.db && typeof offlineDB.getAll === 'function') {
             try {
@@ -188,7 +194,7 @@ async function loadDB() {
                 log("🌐 Syncing with Supabase...");
                 const sb = getSupabase();
 
-                // Add timeout to Supabase requests (5 seconds)
+                // Add timeout to Supabase requests (15 seconds for large datasets)
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(
                         () =>
@@ -197,7 +203,7 @@ async function loadDB() {
                                     "Supabase request timeout",
                                 ),
                             ),
-                        5000,
+                        15000,
                     ),
                 );
 
@@ -205,14 +211,15 @@ async function loadDB() {
                     sb.from("products").select("*"),
                     sb.from("variants").select("*"),
                     sb.from("serialized_items").select("*"),
-                    sb.from("sales").select("*").order("created_at", { ascending: false }),
-                    sb.from("stock_transfers").select("*").order("created_at", { ascending: false }),
-                    sb.from("trade_in_transactions").select("*").order("created_at", { ascending: false }),
-                    sb.from("expenses").select("*").order("date", { ascending: false }),
-                    sb.from("layby_transactions").select("*").order("created_at", { ascending: false }),
-                    sb.from("layby_payments").select("*").order("created_at", { ascending: false }),
-                    sb.from("commission_records").select("*").order("created_at", { ascending: false }),
+                    sb.from("sales").select("*").order("created_at", { ascending: false }).limit(500),
+                    sb.from("stock_transfers").select("*").order("created_at", { ascending: false }).limit(100),
+                    sb.from("trade_in_transactions").select("*").order("created_at", { ascending: false }).limit(100),
+                    sb.from("expenses").select("*").order("date", { ascending: false }).limit(100),
+                    sb.from("layby_transactions").select("*").order("created_at", { ascending: false }).limit(100),
+                    sb.from("layby_payments").select("*").order("created_at", { ascending: false }).limit(100),
+                    sb.from("commission_records").select("*").order("created_at", { ascending: false }).limit(100),
                     sb.from("agents").select("*").order("created_at", { ascending: false }),
+                    sb.from("agent_assignments").select("*").order("created_at", { ascending: false }).limit(100),
                 ]);
 
                 const [
@@ -227,6 +234,7 @@ async function loadDB() {
                     lbpR,
                     crR,
                     agR,
+                    aaR,
                 ] = await Promise.race([
                     supabasePromise,
                     timeoutPromise,
@@ -245,6 +253,7 @@ async function loadDB() {
                 if (lbpR && lbpR.data) DB.laybyPayments = lbpR.data;
                 if (crR && crR.data) DB.commissionRecords = crR.data;
                 if (agR && agR.data) DB.agents = agR.data;
+                if (aaR && aaR.data) DB.agentAssignments = aaR.data;
 
                 // Update IndexedDB with fresh data
                 if (offlineDB) {
@@ -259,6 +268,7 @@ async function loadDB() {
                             ...DB.expenses.map((e) => offlineDB.put("expenses", e)),
                             ...DB.commissionRecords.map((c) => offlineDB.put("commission_records", c)),
                             ...DB.agents.map((a) => offlineDB.put("agents", a)),
+                            ...DB.agentAssignments.map((a) => offlineDB.put("agent_assignments", a)),
                         ]);
                     } catch (cacheError) {
                         console.error("Failed to cache data in IndexedDB:", cacheError);
@@ -289,9 +299,19 @@ async function loadDB() {
 
         // Update connection badge
         updateConnBadge();
+
+        // Hide loading indicator
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
     } catch (err) {
         console.error("DB load error:", err);
         toast("Error loading data: " + err.message, "error");
+
+        // Hide loading indicator on error
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
 
         // Ensure DB has at least empty arrays
         DB = {

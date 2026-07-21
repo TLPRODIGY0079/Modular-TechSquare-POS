@@ -107,6 +107,15 @@
 
     <div class="toast-container" id="toastContainer"></div>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); z-index: 9999; align-items: center; justify-content: center; flex-direction: column;">
+        <div style="background: var(--bg2); padding: 40px; border-radius: 20px; text-align: center; box-shadow: var(--sh2);">
+            <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: var(--ac); margin-bottom: 20px;"></i>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--tx); margin-bottom: 8px;">Loading Data</h3>
+            <p style="color: var(--tx2); font-size: 14px;">Please wait while we sync your data...</p>
+        </div>
+    </div>
+
     <!-- Login Screen -->
     <div id="loginScreen" style="display: flex; align-items: center; justify-content: center; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; background: var(--bg);">
         <div class="login-card" style="background: var(--bg2); border-radius: 20px; padding: 40px; box-shadow: var(--sh2); width: 100%; max-width: 400px;">
